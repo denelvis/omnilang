@@ -1,0 +1,44 @@
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Editors & IDEs ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === OmniLang ===
+.omni-cache/
+build/
+reports/
+evidence/
+tasks/
+
+# === Node.js ===
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# === Rust ===
+target/
+Cargo.lock
+
+# === Python ===
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# === Environment & Secrets ===
+.env
+.env.*
+!.env.example
+
+# === Logs ===
+*.log
+
+# === Gemini ===
+.gemini/
