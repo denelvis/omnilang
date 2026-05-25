@@ -14,12 +14,13 @@ export class CodeGenAgent {
   public async generateService(
     serviceName: string,
     ir: any,
-    outputDir: string
+    outputDir: string,
+    target: string = "typescript"
   ): Promise<{ success: boolean; files: string[] }> {
-    console.log(pc.yellow(`   Generating service: ${pc.cyan(serviceName)}...`));
+    console.log(pc.yellow(`   Generating service: ${pc.cyan(serviceName)} [${target}]...`));
 
-    const systemPrompt = getSystemPrompt();
-    const userPrompt = getUserPrompt(serviceName, ir);
+    const systemPrompt = getSystemPrompt(target);
+    const userPrompt = getUserPrompt(serviceName, ir, target);
 
     const response = await this.provider.generateCode(systemPrompt, userPrompt);
     const parsed = this.parseResponse(response);
@@ -33,6 +34,11 @@ export class CodeGenAgent {
       
       console.log(`     ${pc.green("✓")} Wrote ${pc.dim(file.path)}`);
       writtenFiles.push(targetPath);
+    }
+
+    // For Rust, update mod.rs to include the new service module
+    if (target === "rust") {
+      this.updateRustModFile(outputDir, serviceName);
     }
 
     return { success: true, files: writtenFiles };
@@ -61,5 +67,25 @@ export class CodeGenAgent {
       console.error(pc.dim(response));
       throw new Error(`Invalid JSON format from code generator: ${e.message}`);
     }
+  }
+
+  private updateRustModFile(outputDir: string, serviceName: string): void {
+    const modRsPath = path.join(outputDir, "src", "services", "mod.rs");
+    const modName = this.toSnakeCase(serviceName);
+    const modLine = `pub mod ${modName};\n`;
+    
+    if (fs.existsSync(modRsPath)) {
+      const content = fs.readFileSync(modRsPath, "utf8");
+      if (!content.includes(modLine.trim())) {
+        fs.appendFileSync(modRsPath, modLine);
+      }
+    }
+  }
+
+  private toSnakeCase(name: string): string {
+    return name
+      .replace(/([A-Z])/g, "_$1")
+      .toLowerCase()
+      .replace(/^_/, "");
   }
 }

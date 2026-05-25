@@ -493,6 +493,22 @@ mod tests {
     }
 
     #[test]
+    fn new_keywords() {
+        let kinds = lex_kinds("entity relations indexes cannot must");
+        assert_eq!(
+            kinds,
+            vec![
+                TokenKind::KwEntity,
+                TokenKind::KwRelations,
+                TokenKind::KwIndexes,
+                TokenKind::KwCannot,
+                TokenKind::KwMust,
+                TokenKind::Eof,
+            ]
+        );
+    }
+
+    #[test]
     fn test_keywords() {
         let kinds = lex_kinds("tests scenario given when expect assert forall");
         assert_eq!(

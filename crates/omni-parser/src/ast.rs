@@ -55,7 +55,28 @@ pub struct ImportItem {
 pub enum Declaration {
     Type(TypeDecl),
     Service(ServiceDecl),
-    // Phase 1+: Component, Pipeline, Workflow, Agent, Schema, Policy
+    Component(ComponentDecl),
+    Pipeline(PipelineDecl),
+    Workflow(WorkflowDecl),
+    Agent(AgentDecl),
+    Schema(SchemaDecl),
+    Policy(PolicyDecl),
+    Constraint(ConstraintDecl),
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ConstraintDecl {
+    pub name: String,
+    pub requires: Vec<Constraint>,
+    pub verification: Vec<VerificationEntry>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct VerificationEntry {
+    pub tool: String,
+    pub evidence: String,
+    pub span: Span,
 }
 
 // ---------------------------------------------------------------------------
@@ -63,8 +84,16 @@ pub enum Declaration {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, serde::Serialize)]
+pub struct TypeParam {
+    pub name: String,
+    pub bounds: Vec<TypeRef>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct TypeDecl {
     pub name: String,
+    pub type_params: Vec<TypeParam>,
     pub kind: TypeKind,
     pub span: Span,
 }
@@ -111,7 +140,7 @@ pub struct Field {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct RefinedType {
-    pub base: TypeRef,
+    pub base: Option<TypeRef>,
     pub constraints: Vec<TypeConstraint>,
     pub span: Span,
 }
@@ -128,7 +157,21 @@ pub struct TypeConstraint {
 pub struct TypeRef {
     pub name: String,
     pub type_args: Vec<TypeRef>,
+    pub union_members: Vec<TypeRef>,
+    pub intersection_members: Vec<TypeRef>,
     pub span: Span,
+}
+
+impl TypeRef {
+    pub fn simple(name: String, span: Span) -> Self {
+        Self {
+            name,
+            type_args: Vec::new(),
+            union_members: Vec::new(),
+            intersection_members: Vec::new(),
+            span,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -144,6 +187,7 @@ pub struct ServiceDecl {
     pub rpcs: Vec<RpcDecl>,
     pub budget: Option<BudgetBlock>,
     pub metrics: Vec<MetricDecl>,
+    pub invariants: Vec<Expression>,
     pub span: Span,
 }
 
@@ -277,6 +321,7 @@ pub enum Expression {
     /// Function call: `old(balance)`, `sum(items)`
     Call {
         function: String,
+        type_args: Option<Vec<TypeRef>>,
         args: Vec<Expression>,
         span: Span,
     },
@@ -321,4 +366,198 @@ pub enum BinaryOperator {
 pub enum UnaryOperator {
     Not, // !
     Neg, // -
+}
+
+// ---------------------------------------------------------------------------
+// Phase 1: Component, Pipeline, Workflow, Agent, Schema, Policy declarations
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ComponentDecl {
+    pub name: String,
+    pub goal: Option<String>,
+    pub props: Vec<Field>,
+    pub state: Vec<Field>,
+    pub events: Vec<EventDecl>,
+    pub slots: Vec<Field>,
+    pub constraints: Vec<Constraint>,
+    pub style_guide: Option<String>,
+    pub visual_spec: Vec<String>,
+    pub tests: Vec<TestBlock>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct EventDecl {
+    pub name: String,
+    pub params: Vec<Field>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PipelineDecl {
+    pub name: String,
+    pub goal: Option<String>,
+    pub source: Vec<ConfigEntry>,
+    pub stages: Vec<PipelineStage>,
+    pub sink: Vec<ConfigEntry>,
+    pub constraints: Vec<Constraint>,
+    pub schedule: Option<String>,
+    pub tests: Vec<TestBlock>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ConfigEntry {
+    pub key: String,
+    pub value: Expression,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PipelineStage {
+    pub name: String,
+    pub entries: Vec<ConfigEntry>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WorkflowDecl {
+    pub name: String,
+    pub goal: Option<String>,
+    pub states: Vec<String>,
+    pub transitions: Vec<WorkflowTransition>,
+    pub constraints: Vec<Constraint>,
+    pub tests: Vec<TestBlock>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WorkflowTransition {
+    pub from: String,
+    pub to: String,
+    pub trigger: Option<String>,
+    pub timeout: Option<WorkflowTimeout>,
+    pub guard: Option<Expression>,
+    pub actions: Vec<String>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WorkflowTimeout {
+    pub duration: Expression,
+    pub target_state: String,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AgentDecl {
+    pub name: String,
+    pub goal: Option<String>,
+    pub capabilities: Vec<String>,
+    pub boundaries: Vec<AgentBoundary>,
+    pub tools: Vec<AgentTool>,
+    pub model: Vec<ConfigEntry>,
+    pub budget: Option<BudgetBlock>,
+    pub tests: Vec<TestBlock>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AgentBoundary {
+    pub kind: BoundaryKind,
+    pub expr: Expression,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, Copy, serde::Serialize, PartialEq, Eq)]
+pub enum BoundaryKind {
+    Must,
+    Cannot,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AgentTool {
+    pub name: String,
+    pub inputs: Vec<Field>,
+    pub outputs: Vec<Field>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SchemaDecl {
+    pub name: String,
+    pub goal: Option<String>,
+    pub target: Option<String>,
+    pub entities: Vec<EntityDecl>,
+    pub relations: Vec<RelationDecl>,
+    pub indexes: Vec<IndexDecl>,
+    pub constraints: Vec<Constraint>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct EntityDecl {
+    pub name: String,
+    pub fields: Vec<EntityField>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct EntityField {
+    pub name: String,
+    pub ty: TypeRef,
+    pub default: Option<Expression>,
+    pub decorators: Vec<Decorator>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Decorator {
+    pub name: String,
+    pub args: Vec<Expression>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RelationDecl {
+    pub lhs: String,
+    pub rel_type: String,
+    pub rhs: String,
+    pub args: Vec<ConfigEntry>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct IndexDecl {
+    pub entity: String,
+    pub fields: Vec<String>,
+    pub r#where: Option<Expression>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PolicyDecl {
+    pub name: String,
+    pub description: Option<String>,
+    pub scope: Option<String>,
+    pub rules: Vec<PolicyRule>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PolicyRule {
+    pub condition: String,
+    pub clauses: Vec<PolicyClause>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub enum PolicyClause {
+    Simple(String, Span),
+    Action {
+        verb: String,
+        value: Expression,
+        span: Span,
+    },
 }

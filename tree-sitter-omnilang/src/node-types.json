@@ -1,21 +1,138 @@
 [
   {
+    "type": "agent_boundary",
+    "named": true,
+    "fields": {
+      "expr": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      },
+      "kind": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "cannot",
+            "named": false
+          },
+          {
+            "type": "must",
+            "named": false
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "agent_declaration",
     "named": true,
-    "fields": {},
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": true,
-      "required": true,
+      "required": false,
       "types": [
         {
-          "type": "block",
+          "type": "boundaries_section",
           "named": true
         },
         {
-          "type": "identifier",
+          "type": "budget_section",
+          "named": true
+        },
+        {
+          "type": "capabilities_section",
+          "named": true
+        },
+        {
+          "type": "goal_section",
+          "named": true
+        },
+        {
+          "type": "model_section",
+          "named": true
+        },
+        {
+          "type": "tests_section",
+          "named": true
+        },
+        {
+          "type": "tools_section",
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "agent_tool",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "agent_tool_param",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "agent_tool_param",
+    "named": true,
+    "fields": {
+      "direction": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "input",
+            "named": false
+          },
+          {
+            "type": "output",
+            "named": false
+          }
+        ]
+      },
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_ref",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -62,6 +179,21 @@
     "fields": {}
   },
   {
+    "type": "boundaries_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "agent_boundary",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "budget_section",
     "named": true,
     "fields": {},
@@ -103,22 +235,103 @@
     }
   },
   {
+    "type": "capabilities_section",
+    "named": true,
+    "fields": {
+      "capability": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "component_declaration",
     "named": true,
-    "fields": {},
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": true,
-      "required": true,
+      "required": false,
       "types": [
         {
-          "type": "block",
+          "type": "constraints_section",
           "named": true
         },
         {
-          "type": "identifier",
+          "type": "events_section",
+          "named": true
+        },
+        {
+          "type": "goal_section",
+          "named": true
+        },
+        {
+          "type": "props_section",
+          "named": true
+        },
+        {
+          "type": "slots_section",
+          "named": true
+        },
+        {
+          "type": "state_section",
+          "named": true
+        },
+        {
+          "type": "style_guide_section",
+          "named": true
+        },
+        {
+          "type": "tests_section",
+          "named": true
+        },
+        {
+          "type": "visual_spec_section",
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "config_entry",
+    "named": true,
+    "fields": {
+      "key": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -145,6 +358,36 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "constraint_declaration",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "requires_section",
+          "named": true
+        },
+        {
+          "type": "verification_section",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -189,6 +432,32 @@
     }
   },
   {
+    "type": "decorator",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "depends_on_section",
     "named": true,
     "fields": {
@@ -205,6 +474,21 @@
     }
   },
   {
+    "type": "description_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "string_literal",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "dotted_name",
     "named": true,
     "fields": {},
@@ -214,6 +498,78 @@
       "types": [
         {
           "type": "identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "entity_declaration",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "entity_field",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "entity_field",
+    "named": true,
+    "fields": {
+      "default": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_ref",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "decorator",
           "named": true
         }
       ]
@@ -296,6 +652,47 @@
       "types": [
         {
           "type": "error_definition",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "event_definition",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "field",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "events_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "event_definition",
           "named": true
         }
       ]
@@ -465,6 +862,57 @@
     }
   },
   {
+    "type": "index_definition",
+    "named": true,
+    "fields": {
+      "entity": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "where": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "indexes_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "index_definition",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "inputs_section",
     "named": true,
     "fields": {},
@@ -474,6 +922,21 @@
       "types": [
         {
           "type": "field",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "invariants_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
           "named": true
         }
       ]
@@ -551,6 +1014,21 @@
     }
   },
   {
+    "type": "model_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "config_entry",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "module_declaration",
     "named": true,
     "fields": {
@@ -584,17 +1062,135 @@
   {
     "type": "pipeline_declaration",
     "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "constraints_section",
+          "named": true
+        },
+        {
+          "type": "goal_section",
+          "named": true
+        },
+        {
+          "type": "schedule_section",
+          "named": true
+        },
+        {
+          "type": "sink_section",
+          "named": true
+        },
+        {
+          "type": "source_section",
+          "named": true
+        },
+        {
+          "type": "stages_section",
+          "named": true
+        },
+        {
+          "type": "tests_section",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "pipeline_stage",
+    "named": true,
     "fields": {},
     "children": {
       "multiple": true,
       "required": true,
       "types": [
         {
-          "type": "block",
+          "type": "config_entry",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "policy_action_clause",
+    "named": true,
+    "fields": {
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      },
+      "verb": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "policy_clause",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "policy_action_clause",
+          "named": true
+        },
+        {
+          "type": "policy_simple_clause",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "policy_condition",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "float_literal",
           "named": true
         },
         {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "integer_literal",
+          "named": true
+        },
+        {
+          "type": "string_literal",
           "named": true
         }
       ]
@@ -603,17 +1199,85 @@
   {
     "type": "policy_declaration",
     "named": true,
-    "fields": {},
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "description_section",
+          "named": true
+        },
+        {
+          "type": "rules_section",
+          "named": true
+        },
+        {
+          "type": "scope_section",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "policy_rule",
+    "named": true,
+    "fields": {
+      "condition": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "policy_condition",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": true,
       "required": true,
       "types": [
         {
-          "type": "block",
+          "type": "policy_clause",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "policy_simple_clause",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "float_literal",
           "named": true
         },
         {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "integer_literal",
+          "named": true
+        },
+        {
+          "type": "string_literal",
           "named": true
         }
       ]
@@ -680,6 +1344,21 @@
     }
   },
   {
+    "type": "props_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "field",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "quantifier",
     "named": true,
     "fields": {
@@ -711,7 +1390,7 @@
     "fields": {
       "base": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "type_ref",
@@ -726,6 +1405,82 @@
       "types": [
         {
           "type": "block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "relation_definition",
+    "named": true,
+    "fields": {
+      "lhs": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "rel_type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "rhs": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "config_entry",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "relations_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "relation_definition",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "requires_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "constraint_item",
           "named": true
         }
       ]
@@ -793,6 +1548,21 @@
     }
   },
   {
+    "type": "rules_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "policy_rule",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "scenario_block",
     "named": true,
     "fields": {
@@ -823,17 +1593,74 @@
     }
   },
   {
-    "type": "schema_declaration",
+    "type": "schedule_section",
     "named": true,
     "fields": {},
     "children": {
-      "multiple": true,
+      "multiple": false,
       "required": true,
       "types": [
         {
-          "type": "block",
+          "type": "string_literal",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "schema_declaration",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "constraints_section",
           "named": true
         },
+        {
+          "type": "entity_declaration",
+          "named": true
+        },
+        {
+          "type": "goal_section",
+          "named": true
+        },
+        {
+          "type": "indexes_section",
+          "named": true
+        },
+        {
+          "type": "relations_section",
+          "named": true
+        },
+        {
+          "type": "target_section",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "scope_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
         {
           "type": "identifier",
           "named": true
@@ -863,6 +1690,10 @@
         },
         {
           "type": "goal_section",
+          "named": true
+        },
+        {
+          "type": "invariants_section",
           "named": true
         },
         {
@@ -903,6 +1734,36 @@
     }
   },
   {
+    "type": "sink_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "config_entry",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "slots_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "field",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "source_file",
     "named": true,
     "fields": {},
@@ -916,6 +1777,10 @@
         },
         {
           "type": "component_declaration",
+          "named": true
+        },
+        {
+          "type": "constraint_declaration",
           "named": true
         },
         {
@@ -954,6 +1819,67 @@
     }
   },
   {
+    "type": "source_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "config_entry",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "stages_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "pipeline_stage",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "state_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "field",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "states_section",
+    "named": true,
+    "fields": {
+      "state": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "struct_type",
     "named": true,
     "fields": {},
@@ -966,6 +1892,41 @@
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "style_guide_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "string_literal",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "target_section",
+    "named": true,
+    "fields": {
+      "target": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -982,6 +1943,51 @@
         },
         {
           "type": "scenario_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "tools_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "agent_tool",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "transitions_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "workflow_transition",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "type_bounds",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "type_ref",
           "named": true
         }
       ]
@@ -1022,7 +2028,58 @@
             "named": true
           }
         ]
+      },
+      "type_params": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "type_parameters",
+            "named": true
+          }
+        ]
       }
+    }
+  },
+  {
+    "type": "type_parameter",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "type_bounds",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "type_parameters",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "type_parameter",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -1031,7 +2088,7 @@
     "fields": {
       "name": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "identifier",
@@ -1093,7 +2150,7 @@
     }
   },
   {
-    "type": "workflow_declaration",
+    "type": "verification_entry",
     "named": true,
     "fields": {},
     "children": {
@@ -1101,14 +2158,222 @@
       "required": true,
       "types": [
         {
-          "type": "block",
+          "type": "config_entry",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "verification_section",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "verification_entry",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "visual_spec_item",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "duration_literal",
+          "named": true
+        },
+        {
+          "type": "float_literal",
           "named": true
         },
         {
           "type": "identifier",
           "named": true
+        },
+        {
+          "type": "integer_literal",
+          "named": true
+        },
+        {
+          "type": "money_literal",
+          "named": true
+        },
+        {
+          "type": "percentage_literal",
+          "named": true
+        },
+        {
+          "type": "string_literal",
+          "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "visual_spec_section",
+    "named": true,
+    "fields": {
+      "spec": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "visual_spec_item",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "workflow_declaration",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "constraints_section",
+          "named": true
+        },
+        {
+          "type": "goal_section",
+          "named": true
+        },
+        {
+          "type": "states_section",
+          "named": true
+        },
+        {
+          "type": "tests_section",
+          "named": true
+        },
+        {
+          "type": "transitions_section",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "workflow_timeout",
+    "named": true,
+    "fields": {
+      "duration": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      },
+      "target_state": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "workflow_transition",
+    "named": true,
+    "fields": {
+      "action": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": ",",
+            "named": false
+          },
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "from": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "guard": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      },
+      "timeout": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "workflow_timeout",
+            "named": true
+          }
+        ]
+      },
+      "to": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "trigger": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -1117,6 +2382,10 @@
   },
   {
     "type": "!=",
+    "named": false
+  },
+  {
+    "type": "&",
     "named": false
   },
   {
@@ -1136,11 +2405,23 @@
     "named": false
   },
   {
+    "type": "+",
+    "named": false
+  },
+  {
     "type": ",",
     "named": false
   },
   {
     "type": "-",
+    "named": false
+  },
+  {
+    "type": "--",
+    "named": false
+  },
+  {
+    "type": "->",
     "named": false
   },
   {
@@ -1153,6 +2434,10 @@
   },
   {
     "type": "..<",
+    "named": false
+  },
+  {
+    "type": "/",
     "named": false
   },
   {
@@ -1184,11 +2469,23 @@
     "named": false
   },
   {
+    "type": "?",
+    "named": false
+  },
+  {
+    "type": "@",
+    "named": false
+  },
+  {
     "type": "[",
     "named": false
   },
   {
     "type": "]",
+    "named": false
+  },
+  {
+    "type": "action",
     "named": false
   },
   {
@@ -1204,7 +2501,19 @@
     "named": false
   },
   {
+    "type": "boundaries",
+    "named": false
+  },
+  {
     "type": "budget",
+    "named": false
+  },
+  {
+    "type": "cannot",
+    "named": false
+  },
+  {
+    "type": "capabilities",
     "named": false
   },
   {
@@ -1213,6 +2522,10 @@
   },
   {
     "type": "component",
+    "named": false
+  },
+  {
+    "type": "constraint",
     "named": false
   },
   {
@@ -1228,8 +2541,16 @@
     "named": false
   },
   {
+    "type": "description",
+    "named": false
+  },
+  {
     "type": "duration_literal",
     "named": true
+  },
+  {
+    "type": "entity",
+    "named": false
   },
   {
     "type": "enum",
@@ -1237,6 +2558,10 @@
   },
   {
     "type": "errors",
+    "named": false
+  },
+  {
+    "type": "events",
     "named": false
   },
   {
@@ -1272,6 +2597,10 @@
     "named": false
   },
   {
+    "type": "guard",
+    "named": false
+  },
+  {
     "type": "histogram",
     "named": false
   },
@@ -1280,7 +2609,19 @@
     "named": true
   },
   {
+    "type": "if",
+    "named": false
+  },
+  {
     "type": "in",
+    "named": false
+  },
+  {
+    "type": "indexes",
+    "named": false
+  },
+  {
+    "type": "input",
     "named": false
   },
   {
@@ -1292,7 +2633,15 @@
     "named": true
   },
   {
+    "type": "invariants",
+    "named": false
+  },
+  {
     "type": "metrics",
+    "named": false
+  },
+  {
+    "type": "model",
     "named": false
   },
   {
@@ -1304,12 +2653,20 @@
     "named": true
   },
   {
+    "type": "must",
+    "named": false
+  },
+  {
     "type": "not in",
     "named": false
   },
   {
     "type": "null_literal",
     "named": true
+  },
+  {
+    "type": "output",
+    "named": false
   },
   {
     "type": "outputs",
@@ -1340,7 +2697,23 @@
     "named": false
   },
   {
+    "type": "props",
+    "named": false
+  },
+  {
+    "type": "relations",
+    "named": false
+  },
+  {
+    "type": "requires",
+    "named": false
+  },
+  {
     "type": "rpc",
+    "named": false
+  },
+  {
+    "type": "rules",
     "named": false
   },
   {
@@ -1348,11 +2721,43 @@
     "named": false
   },
   {
+    "type": "schedule",
+    "named": false
+  },
+  {
     "type": "schema",
     "named": false
   },
   {
+    "type": "scope",
+    "named": false
+  },
+  {
     "type": "service",
+    "named": false
+  },
+  {
+    "type": "sink",
+    "named": false
+  },
+  {
+    "type": "slots",
+    "named": false
+  },
+  {
+    "type": "source",
+    "named": false
+  },
+  {
+    "type": "stages",
+    "named": false
+  },
+  {
+    "type": "state",
+    "named": false
+  },
+  {
+    "type": "states",
     "named": false
   },
   {
@@ -1364,7 +2769,31 @@
     "named": false
   },
   {
+    "type": "style_guide",
+    "named": false
+  },
+  {
+    "type": "target",
+    "named": false
+  },
+  {
     "type": "tests",
+    "named": false
+  },
+  {
+    "type": "timeout",
+    "named": false
+  },
+  {
+    "type": "tools",
+    "named": false
+  },
+  {
+    "type": "transitions",
+    "named": false
+  },
+  {
+    "type": "trigger",
     "named": false
   },
   {
@@ -1380,7 +2809,19 @@
     "named": false
   },
   {
+    "type": "verification",
+    "named": false
+  },
+  {
+    "type": "visual_spec",
+    "named": false
+  },
+  {
     "type": "when",
+    "named": false
+  },
+  {
+    "type": "where",
     "named": false
   },
   {
@@ -1389,6 +2830,10 @@
   },
   {
     "type": "{",
+    "named": false
+  },
+  {
+    "type": "|",
     "named": false
   },
   {

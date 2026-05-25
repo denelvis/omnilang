@@ -15,6 +15,7 @@ pub mod deps;
 pub mod ir;
 pub mod symbols;
 pub mod type_check;
+pub mod type_mapping;
 
 use omni_parser::ParseError;
 use omni_parser::ast::SourceFile;
