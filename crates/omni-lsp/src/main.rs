@@ -172,6 +172,8 @@ impl LanguageServer for Backend {
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 definition_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
+                code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+                rename_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -384,6 +386,70 @@ impl LanguageServer for Backend {
         }
 
         Ok(Some(DocumentSymbolResponse::Flat(symbols)))
+    }
+
+    async fn code_action(&self, _params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+        let actions = vec![
+            CodeActionOrCommand::CodeAction(CodeAction {
+                title: "Extract mixin".to_string(),
+                kind: Some(CodeActionKind::REFACTOR_EXTRACT),
+                diagnostics: None,
+                edit: Some(WorkspaceEdit {
+                    changes: None,
+                    document_changes: None,
+                    change_annotations: None,
+                }),
+                command: None,
+                is_preferred: Some(true),
+                disabled: None,
+                data: None,
+            }),
+            CodeActionOrCommand::CodeAction(CodeAction {
+                title: "Add test scenario".to_string(),
+                kind: Some(CodeActionKind::QUICKFIX),
+                diagnostics: None,
+                edit: Some(WorkspaceEdit {
+                    changes: None,
+                    document_changes: None,
+                    change_annotations: None,
+                }),
+                command: None,
+                is_preferred: Some(false),
+                disabled: None,
+                data: None,
+            }),
+        ];
+
+        Ok(Some(actions))
+    }
+
+    async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
+        let uri = params.text_document_position.text_document.uri;
+        let new_name = params.new_name;
+
+        let mut changes = HashMap::new();
+        changes.insert(
+            uri,
+            vec![TextEdit {
+                range: Range {
+                    start: Position {
+                        line: params.text_document_position.position.line,
+                        character: 0,
+                    },
+                    end: Position {
+                        line: params.text_document_position.position.line,
+                        character: 20,
+                    },
+                },
+                new_text: new_name,
+            }],
+        );
+
+        Ok(Some(WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        }))
     }
 }
 

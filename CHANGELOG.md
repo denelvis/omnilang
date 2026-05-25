@@ -5,6 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-05-25
+
+### Added
+
+- **Formal Verification Integration** (Step 5.1):
+  - Added SMT obligation extractor and translator to translate invariants, pre/postconditions into SMT-LIB v2 scripts.
+  - SMT proof certificate generation saved to `.omni-cache/proofs/`.
+  - Local Z3 solver integration checking obligations and promoting verified services to `Proven` status.
+
+- **Multi-Repository Federated Builds** (Step 5.2):
+  - Supported `--federated <config_toml>` in build subcommand.
+  - Implemented cross-repository contract compatibility verification check.
+
+- **Audit & Compliance Dashboard** (Step 5.3):
+  - Added `omni dashboard` subcommand generating real-time audit files and compliance reports: PCI DSS v4.0, SOC 2 Type II, and HIPAA compliance report.
+  - Interactive compliance report site under `compliance/index.html` featuring org trust scores, cost trends, and Evidence Chain Browser.
+
+- **Cost Optimization Engine** (Step 5.4):
+  - Updated `omni plan` output to compute and display ML model routing recommendations (Cheap, Balanced, Premium), predictive build cost estimation, and cache statistics.
+
+- **Self-Improving Agents** (Step 5.5):
+  - TypeScript runtime integration for self-improving agents tracking execution logs.
+  - Save retry failures to `.omni-cache/traces/retries.json` and successful traces to `.omni-cache/traces/`.
+  - Automatic prompt optimizer analyzing errors (compilation, test, schema errors) to append adaptive prompt suggestions.
+  - A/B testing strategy router evaluating multiple model tiers.
+
+## [0.9.0] - 2026-05-25
+
+### Added
+
+- **Package Registry** (Step 4.1):
+  - Mock registry and package manager subcommands: `publish`, `install`, `search`.
+  - Organization-scoped packages support (`@acme/...`, `@community/...`).
+  - Publish verification hook checking packages before registry upload.
+  - Local package caching registry under `.omni-cache/registry/`.
+
+- **Policy Enforcement** (Step 4.2):
+  - Organization-wide policy files (`.omnipolicy`) parser and compliance checker.
+  - Policy inheritance (org -> project -> service) and override mechanism with annotations.
+
+- **Workflow Blocks** (Step 4.3):
+  - Multi-step business workflow blocks parsing and state machine transition validation.
+  - Reachability check and dead state detection.
+  - Mermaid state diagram generator and TypeScript state machine pattern code generator.
+
+- **Agent Marketplace** (Step 4.4):
+  - Agent performance evaluation and benchmarking suite.
+  - Multi-agent leaderboard console view: `omni agents benchmark`.
+
+- **IDE Rich Features** (Step 4.5):
+  - LSP code actions ("Extract mixin", "Add test scenario") and rename symbol refactoring support.
+  - Intent Entropy Analyzer & Logical Gap Detector.
+
+- **Schema Blocks** (Step 4.6):
+  - Database schema block parser and multi-DB SQL migration generators (Postgres, MySQL, MongoDB, DynamoDB).
+  - Schema evolution breaking change detector comparing schema version updates.
+
+- **Documentation Generation** (Step 4.7):
+  - CLI subcommand: `omni docs generate`.
+  - OpenAPI/Swagger specification builder.
+  - Incident response runbook generator from service constraints.
+  - Gorgeous, responsive, interactive HTML documentation site.
+
 ## [0.8.0] - 2026-05-25
 
 ### Added
