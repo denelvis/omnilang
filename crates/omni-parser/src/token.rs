@@ -35,6 +35,11 @@ pub enum TokenKind {
     KwAs,
     KwVersion,
     KwTarget,
+    KwExport,
+    KwPrivate,
+    KwMixin,
+    KwApply,
+    KwConstraints,
 
     // Type declarations
     KwType,
@@ -241,6 +246,11 @@ impl TokenKind {
             "as" => Some(TokenKind::KwAs),
             "version" => Some(TokenKind::KwVersion),
             "target" => Some(TokenKind::KwTarget),
+            "export" => Some(TokenKind::KwExport),
+            "private" => Some(TokenKind::KwPrivate),
+            "mixin" => Some(TokenKind::KwMixin),
+            "apply" => Some(TokenKind::KwApply),
+            "constraints" => Some(TokenKind::KwConstraints),
 
             // Type declarations
             "type" => Some(TokenKind::KwType),
@@ -364,6 +374,11 @@ impl TokenKind {
                 | TokenKind::KwAs
                 | TokenKind::KwVersion
                 | TokenKind::KwTarget
+                | TokenKind::KwExport
+                | TokenKind::KwPrivate
+                | TokenKind::KwMixin
+                | TokenKind::KwApply
+                | TokenKind::KwConstraints
                 | TokenKind::KwType
                 | TokenKind::KwStruct
                 | TokenKind::KwEnum

@@ -40,12 +40,58 @@ impl Parser {
         let module = self.parse_module_decl();
         let mut imports = Vec::new();
         let mut declarations = Vec::new();
+        let mut exports = Vec::new();
 
         while !self.is_at_end() {
             match self.peek_kind() {
                 TokenKind::KwUse => {
                     if let Some(import) = self.parse_import() {
                         imports.push(import);
+                    }
+                }
+                TokenKind::KwExport => {
+                    self.advance(); // consume 'export'
+                    // Export the next identifier(s)
+                    if self.check(TokenKind::Ident) || self.peek_kind().is_keyword() {
+                        let tok = self.advance();
+                        exports.push(tok.text);
+                    }
+                }
+                TokenKind::KwPrivate => {
+                    self.advance(); // consume 'private'
+                    // The next declaration is private
+                    match self.peek_kind() {
+                        TokenKind::KwType => {
+                            if let Some(mut decl) = self.parse_type_decl() {
+                                decl.visibility = Visibility::Private;
+                                declarations.push(Declaration::Type(decl));
+                            }
+                        }
+                        TokenKind::KwService => {
+                            if let Some(mut decl) = self.parse_service_decl() {
+                                decl.visibility = Visibility::Private;
+                                declarations.push(Declaration::Service(decl));
+                            }
+                        }
+                        TokenKind::KwMixin => {
+                            if let Some(mut decl) = self.parse_mixin_decl() {
+                                decl.visibility = Visibility::Private;
+                                declarations.push(Declaration::Mixin(decl));
+                            }
+                        }
+                        _ => {
+                            let tok = self.advance();
+                            self.errors.push(ParseError::Expected {
+                                expected: "declaration after 'private'".to_string(),
+                                found: format!("'{}'", tok.text),
+                                span: tok.span,
+                            });
+                        }
+                    }
+                }
+                TokenKind::KwMixin => {
+                    if let Some(decl) = self.parse_mixin_decl() {
+                        declarations.push(Declaration::Mixin(decl));
                     }
                 }
                 TokenKind::KwType => {
@@ -99,7 +145,7 @@ impl Parser {
                 _ => {
                     let tok = self.advance();
                     self.errors.push(ParseError::Expected {
-                        expected: "top-level declaration (type, service, component, pipeline, workflow, agent, schema, policy, use)".to_string(),
+                        expected: "top-level declaration (type, service, component, pipeline, workflow, agent, schema, policy, mixin, use)".to_string(),
                         found: format!("'{}'", tok.text),
                         span: tok.span,
                     });
@@ -112,6 +158,7 @@ impl Parser {
         let file = SourceFile {
             module,
             imports,
+            exports,
             declarations,
         };
         (file, self.errors)
@@ -167,6 +214,7 @@ impl Parser {
                     return Some(ImportDecl {
                         path,
                         items,
+                        kind: ImportKind::Standard,
                         span: start.merge(end),
                     });
                 }
@@ -178,6 +226,7 @@ impl Parser {
                     return Some(ImportDecl {
                         path,
                         items,
+                        kind: ImportKind::Standard,
                         span: start.merge(end),
                     });
                 }
@@ -192,6 +241,7 @@ impl Parser {
         Some(ImportDecl {
             path,
             items,
+            kind: ImportKind::Standard,
             span: start.merge(end),
         })
     }
@@ -286,6 +336,7 @@ impl Parser {
                         name,
                         type_params,
                         kind,
+                        visibility: Visibility::Public,
                         span: start.merge(end),
                     });
                 }
@@ -297,6 +348,7 @@ impl Parser {
                         name,
                         type_params,
                         kind,
+                        visibility: Visibility::Public,
                         span: start.merge(end),
                     });
                 }
@@ -312,6 +364,7 @@ impl Parser {
                             constraints,
                             span: start.merge(end),
                         }),
+                        visibility: Visibility::Public,
                         span: start.merge(end),
                     });
                 }
@@ -332,6 +385,7 @@ impl Parser {
                                 constraints,
                                 span: start.merge(end),
                             }),
+                            visibility: Visibility::Public,
                             span: start.merge(end),
                         });
                     }
@@ -342,6 +396,7 @@ impl Parser {
                         name,
                         type_params,
                         kind: TypeKind::Alias(type_ref),
+                        visibility: Visibility::Public,
                         span: start.merge(end),
                     });
                 }
@@ -587,7 +642,9 @@ impl Parser {
                         goal = Some(tok.text[1..tok.text.len() - 1].to_string());
                     }
                 }
-                TokenKind::KwConstraint | TokenKind::Ident if self.peek_text() == "constraints" => {
+                TokenKind::KwConstraint | TokenKind::KwConstraints | TokenKind::Ident
+                    if self.peek_text() == "constraints" =>
+                {
                     self.advance();
                     self.expect(TokenKind::Colon);
                     constraints = self.parse_constraint_list();
@@ -635,6 +692,8 @@ impl Parser {
             budget,
             metrics,
             invariants,
+            applies: Vec::new(),
+            visibility: Visibility::Public,
             span: start.merge(end),
         })
     }
@@ -688,7 +747,9 @@ impl Parser {
                     self.expect(TokenKind::Colon);
                     tests = self.parse_test_list();
                 }
-                TokenKind::Ident if self.peek_text() == "constraints" => {
+                TokenKind::KwConstraints | TokenKind::Ident
+                    if self.peek_text() == "constraints" =>
+                {
                     self.advance();
                     self.expect(TokenKind::Colon);
                     constraints = self.parse_constraint_list();
@@ -1698,7 +1759,9 @@ impl Parser {
                     self.expect(TokenKind::Colon);
                     tests = self.parse_test_list();
                 }
-                TokenKind::Ident if self.peek_text() == "constraints" => {
+                TokenKind::KwConstraints | TokenKind::Ident
+                    if self.peek_text() == "constraints" =>
+                {
                     self.advance();
                     self.expect(TokenKind::Colon);
                     constraints = self.parse_constraint_list();
@@ -1815,7 +1878,9 @@ impl Parser {
                     self.expect(TokenKind::Colon);
                     tests = self.parse_test_list();
                 }
-                TokenKind::Ident if self.peek_text() == "constraints" => {
+                TokenKind::KwConstraints | TokenKind::Ident
+                    if self.peek_text() == "constraints" =>
+                {
                     self.advance();
                     self.expect(TokenKind::Colon);
                     constraints = self.parse_constraint_list();
@@ -1966,7 +2031,9 @@ impl Parser {
                     self.expect(TokenKind::Colon);
                     tests = self.parse_test_list();
                 }
-                TokenKind::Ident if self.peek_text() == "constraints" => {
+                TokenKind::KwConstraints | TokenKind::Ident
+                    if self.peek_text() == "constraints" =>
+                {
                     self.advance();
                     self.expect(TokenKind::Colon);
                     constraints = self.parse_constraint_list();
@@ -2283,7 +2350,9 @@ impl Parser {
                         });
                     }
                 }
-                TokenKind::Ident if self.peek_text() == "constraints" => {
+                TokenKind::KwConstraints | TokenKind::Ident
+                    if self.peek_text() == "constraints" =>
+                {
                     self.advance();
                     self.expect(TokenKind::Colon);
                     constraints = self.parse_constraint_list();
@@ -2493,6 +2562,57 @@ impl Parser {
         })
     }
 
+    fn parse_mixin_decl(&mut self) -> Option<MixinDecl> {
+        let start = self.current_span();
+        self.advance(); // consume 'mixin'
+
+        let name_tok = self.advance();
+        let name = name_tok.text.clone();
+
+        self.expect(TokenKind::BraceOpen);
+
+        let mut constraints = Vec::new();
+        let mut postconditions = Vec::new();
+        let mut tests = Vec::new();
+
+        while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+            match self.peek_kind() {
+                TokenKind::KwConstraints | TokenKind::Ident
+                    if self.peek_text() == "constraints" =>
+                {
+                    self.advance(); // consume "constraints"
+                    self.expect(TokenKind::Colon);
+                    constraints = self.parse_constraint_list();
+                }
+                TokenKind::KwPostconditions => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    postconditions = self.parse_expression_list();
+                }
+                TokenKind::KwTests => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    tests = self.parse_test_list();
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+
+        self.expect(TokenKind::BraceClose);
+        let end = self.previous_span();
+
+        Some(MixinDecl {
+            name,
+            constraints,
+            postconditions,
+            tests,
+            visibility: Visibility::Public,
+            span: start.merge(end),
+        })
+    }
+
     fn synchronize(&mut self) {
         while !self.is_at_end() {
             match self.peek_kind() {
@@ -2506,7 +2626,10 @@ impl Parser {
                 | TokenKind::KwAgent
                 | TokenKind::KwSchema
                 | TokenKind::KwPolicy
-                | TokenKind::KwConstraint => return,
+                | TokenKind::KwConstraint
+                | TokenKind::KwMixin
+                | TokenKind::KwExport
+                | TokenKind::KwPrivate => return,
                 _ => {
                     self.advance();
                 }

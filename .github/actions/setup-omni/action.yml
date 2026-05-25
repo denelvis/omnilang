@@ -1,0 +1,46 @@
+name: "Setup OmniLang CLI"
+description: "Install the omni CLI and cache Rust binaries for faster builds"
+inputs:
+  version:
+    description: "OmniLang version to install (default: latest)"
+    required: false
+    default: "latest"
+  cache:
+    description: "Whether to cache Rust compilation artifacts"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy, rustfmt
+
+    - name: Cache Rust artifacts
+      if: inputs.cache == 'true'
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Build omni CLI
+      shell: bash
+      run: cargo build --release -p omni-cli
+
+    - name: Add to PATH
+      shell: bash
+      run: |
+        echo "${{ github.workspace }}/target/release" >> $GITHUB_PATH
+
+    - name: Verify installation
+      shell: bash
+      run: omni --version

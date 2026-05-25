@@ -51,6 +51,18 @@ enum Commands {
         /// Target language for code generation.
         #[arg(long, default_value = "typescript")]
         target: String,
+
+        /// Enable parallel multi-agent generation.
+        #[arg(long)]
+        parallel: bool,
+
+        /// [DEPRECATED] Wire format. Ignored — always uses minified JSON.
+        #[arg(long, default_value = "json", hide = true)]
+        wire_format: String,
+
+        /// Maximum build budget in dollars.
+        #[arg(long)]
+        budget: Option<f64>,
     },
 
     /// Initialize a new OmniLang project.
@@ -86,7 +98,13 @@ fn main() {
     let exit_code = match cli.command {
         Commands::Check { path, format } => cmd_check(&path, &format, cli.verbose, cli.quiet),
         Commands::Plan { path } => cmd_plan(&path),
-        Commands::Build { path, target } => cmd_build(&path, &target),
+        Commands::Build {
+            path,
+            target,
+            parallel,
+            wire_format,
+            budget,
+        } => cmd_build(&path, &target, parallel, &wire_format, budget),
         Commands::Init { name } => cmd_init(&name),
         Commands::Verify {
             path,
@@ -332,13 +350,37 @@ fn cmd_plan(path: &str) -> i32 {
     0
 }
 
-fn cmd_build(path: &str, target: &str) -> i32 {
+fn cmd_build(
+    path: &str,
+    target: &str,
+    parallel: bool,
+    wire_format: &str,
+    budget: Option<f64>,
+) -> i32 {
     println!(
         "{} Building specifications in: {}",
         "🔨".yellow(),
         path.cyan()
     );
     println!("   Target language: {}", target.green());
+
+    if parallel {
+        println!("   {} Multi-agent parallel generation", "⚡".yellow());
+    }
+    if wire_format != "json" {
+        eprintln!(
+            "{} --wire-format {} is deprecated and ignored. Using minified JSON.",
+            "warning:".yellow().bold(),
+            wire_format
+        );
+    }
+    if let Some(max_budget) = budget {
+        println!(
+            "   {} Budget limit: ${}",
+            "💰".yellow(),
+            format!("{:.2}", max_budget).green()
+        );
+    }
 
     // 1. Verify node and npm are installed
     if !verify_node_installed() {
@@ -484,14 +526,23 @@ fn cmd_build(path: &str, target: &str) -> i32 {
 
             // Execute runtime
             println!("{} Invoking generator runtime...", "🚀".green());
-            let status = std::process::Command::new("node")
-                .arg(runtime_dir.join("dist").join("index.js"))
-                .arg(ir_path)
+            let mut cmd = std::process::Command::new("node");
+            cmd.arg(runtime_dir.join("dist").join("index.js"))
+                .arg(&ir_path)
                 .arg("--output")
                 .arg("build")
                 .arg("--target")
-                .arg(target)
-                .status();
+                .arg(target);
+
+            if parallel {
+                cmd.arg("--parallel");
+            }
+            // wire_format is deprecated — always JSON, don't pass to runtime
+            if let Some(max_budget) = budget {
+                cmd.arg("--budget").arg(format!("{:.2}", max_budget));
+            }
+
+            let status = cmd.status();
 
             match status {
                 Ok(stat) => {

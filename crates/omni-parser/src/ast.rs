@@ -5,6 +5,15 @@
 
 use crate::Span;
 
+/// Visibility of a declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub enum Visibility {
+    /// Public (default) — visible to importing modules.
+    Public,
+    /// Private — only visible within the declaring module.
+    Private,
+}
+
 /// A complete OmniLang source file.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SourceFile {
@@ -12,6 +21,8 @@ pub struct SourceFile {
     pub module: ModuleDecl,
     /// Import statements.
     pub imports: Vec<ImportDecl>,
+    /// Exported symbol names (from `export` declarations).
+    pub exports: Vec<String>,
     /// Top-level declarations.
     pub declarations: Vec<Declaration>,
 }
@@ -31,7 +42,23 @@ pub struct ImportDecl {
     pub path: Vec<String>,
     /// Specific items to import, or empty for wildcard `*`.
     pub items: ImportItems,
+    /// Import kind: standard, relative, or registry.
+    pub kind: ImportKind,
     pub span: Span,
+}
+
+/// The kind of import path.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub enum ImportKind {
+    /// Standard dotted path: `use std.http.Request`
+    Standard,
+    /// Relative path: `use ./shared/types.*`
+    Relative,
+    /// Registry import: `use registry://acme/shared@2.0.*`
+    Registry {
+        registry: String,
+        version: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -62,6 +89,7 @@ pub enum Declaration {
     Schema(SchemaDecl),
     Policy(PolicyDecl),
     Constraint(ConstraintDecl),
+    Mixin(MixinDecl),
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -95,6 +123,7 @@ pub struct TypeDecl {
     pub name: String,
     pub type_params: Vec<TypeParam>,
     pub kind: TypeKind,
+    pub visibility: Visibility,
     pub span: Span,
 }
 
@@ -188,6 +217,19 @@ pub struct ServiceDecl {
     pub budget: Option<BudgetBlock>,
     pub metrics: Vec<MetricDecl>,
     pub invariants: Vec<Expression>,
+    pub applies: Vec<String>,
+    pub visibility: Visibility,
+    pub span: Span,
+}
+
+/// A reusable mixin block.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MixinDecl {
+    pub name: String,
+    pub constraints: Vec<Constraint>,
+    pub postconditions: Vec<Expression>,
+    pub tests: Vec<TestBlock>,
+    pub visibility: Visibility,
     pub span: Span,
 }
 

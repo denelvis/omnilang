@@ -5,6 +5,75 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-05-25
+
+### Added
+
+- **Module System** (Step 2.1):
+  - `export` and `private` visibility modifiers for declarations
+  - `mixin` blocks with `constraints`, `postconditions`, and `tests` sections
+  - `apply: MixinName` in service blocks for mixin composition
+  - Visibility checking: detects exporting private declarations
+  - `omni.toml` manifest parsing with `[package]` and `[dependencies]` sections
+  - `omni.lock` lockfile generation for deterministic dependency pinning
+  - Semantic versioning parsing and conflict detection
+  - Import resolution with registry, relative, and standard imports
+
+- **Multi-Agent Support** (Step 2.2):
+  - Agent registry with capability declaration and matching
+  - Budget-aware agent routing (`CheapFast` / `Balanced` / `SmartExpensive` tiers)
+  - Dependency-aware parallel execution engine with rate limiting
+  - Retry with model escalation and progress tracking callbacks
+
+- **OMWF Wire Format** (Step 2.3):
+  - OMWF serializer: Spec IR → compact token-efficient text format
+  - OMWF deserializer: OMWF text → structured data
+  - Bidirectional JSON ↔ OMWF converter
+  - Constrained decoding grammar generator (BNF, regex, JSON Schema)
+  - Token savings calculator (~40-60% fewer tokens vs JSON)
+
+- **LSP v1** (Step 2.4):
+  - New `crates/omni-lsp/` crate — tower-lsp based language server
+  - Real-time diagnostics from parser and analyzer
+  - Keyword and type autocomplete with trigger characters
+  - Hover information for OmniLang keywords
+  - Go to definition for types, services, and mixins
+  - Document symbol provider (outline view)
+
+- **Budget System** (Step 2.5):
+  - Per-task token counting with input/output breakdown
+  - Per-service cost accumulation and total build cost tracking
+  - Budget enforcement (`max_total`) and alert thresholds (`alert_at`)
+  - Cost estimation from spec IR before build
+  - Formatted cost report generation
+
+- **CI/CD Integration** (Step 2.6):
+  - `.github/actions/setup-omni/` composite action with Rust toolchain + caching
+  - CI workflow: format check, clippy, tests on PR; release build on merge
+  - PR cost reporting via `actions/github-script`
+
+- **Three-Tier Storage & Incremental Builds** (Step 2.7):
+  - Content-addressed cache (CAS) with SHA-256 hashing under `.omni/cache/`
+  - Change detection: skip LLM calls for unchanged specs
+  - Git auto-commit with structured messages after verified builds
+  - Agentic memory: reasoning trace logger for full chain-of-thought transparency
+  - Trace reports with prompt/response/verification/decision history
+
+### Changed
+
+- Parser now recognizes `constraints`, `export`, `private`, and `mixin` as keywords
+- All `constraints:` sections in parsers now handle both `KwConstraints` and `Ident` tokens
+- Analyzer pipeline includes module system checks (visibility + mixin expansion)
+- Wire format replaced: OMWF → strict minified JSON (`runtime/src/wire.ts`)
+- Workspace version bumped to 0.7.0
+
+### Deprecated
+
+- **OMWF wire format** — frozen as experiment, all exports marked `@deprecated`. Lossy serialization, non-standard format, premature optimization. Replaced with minified JSON.
+- `--wire-format` CLI flag — hidden from help, emits warning if used
+
+---
+
 ## [0.6.0] - 2026-05-25
 
 ### Added

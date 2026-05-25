@@ -84,7 +84,8 @@ pub fn check_types(file: &SourceFile, symbols: &SymbolTable, diagnostics: &mut V
             Declaration::Pipeline(_)
             | Declaration::Workflow(_)
             | Declaration::Policy(_)
-            | Declaration::Constraint(_) => {}
+            | Declaration::Constraint(_)
+            | Declaration::Mixin(_) => {}
         }
     }
 

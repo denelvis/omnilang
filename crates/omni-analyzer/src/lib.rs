@@ -13,6 +13,7 @@
 pub mod constraints;
 pub mod deps;
 pub mod ir;
+pub mod module_system;
 pub mod symbols;
 pub mod type_check;
 pub mod type_mapping;
@@ -62,6 +63,10 @@ pub fn analyze(file: &SourceFile) -> (Option<SpecIR>, Vec<Diagnostic>) {
 
     // Phase 3: Constraint validation
     constraints::validate_constraints(file, &mut diagnostics);
+
+    // Phase 3.5: Module system checks (visibility, mixin expansion)
+    module_system::check_visibility(file, &mut diagnostics);
+    module_system::expand_mixins(file, &mut diagnostics);
 
     // Phase 4: Dependency graph
     let dep_graph = deps::build_dependency_graph(file, &mut diagnostics);
