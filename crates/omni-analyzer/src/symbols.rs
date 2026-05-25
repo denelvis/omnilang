@@ -344,6 +344,26 @@ pub fn build_symbol_table(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) 
                     },
                 );
             }
+            Declaration::Mixin(m) => {
+                if let Some(prev) = table.get(&m.name)
+                    && (prev.span.start != 0 || prev.span.end != 0)
+                {
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: format!("duplicate mixin definition: '{}'", m.name),
+                        span: m.span,
+                    });
+                }
+                table.insert(
+                    m.name.clone(),
+                    Symbol {
+                        name: m.name.clone(),
+                        kind: SymbolKind::Constraint, // Mixins act like constraint bundles
+                        span: m.span,
+                        type_params: Vec::new(),
+                    },
+                );
+            }
         }
     }
 

@@ -179,6 +179,10 @@ pub fn build_spec_ir(
                 policy_count += 1;
             }
             Declaration::Constraint(_) => {}
+            Declaration::Mixin(m) => {
+                total_constraints += m.constraints.len();
+                total_tests += m.tests.len();
+            }
         }
     }
 
