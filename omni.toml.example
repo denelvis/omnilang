@@ -1,0 +1,31 @@
+# Example OmniLang project configuration.
+# Copy this file to `omni.toml` in your project root.
+
+[package]
+name = "my-project"
+version = "0.1.0"
+description = "My OmniLang project"
+
+[build]
+target = "typescript"          # default target language: typescript | rust | python | go
+output_dir = "build"           # where generated code goes
+
+[agents]
+default_model = "balanced"
+max_retries = 3
+timeout = "5min"
+
+[agents.codegen]
+model = "claude-sonnet-4-20250514"
+temperature = 0.2
+
+[sandbox]
+runtime = "docker"
+cpu_limit = "2 cores"
+memory_limit = "4GB"
+network = "none"
+timeout = "5min"
+
+[protocol]
+wire_format = "auto"           # "json" | "omwf" | "auto"
+debug_format = "json"

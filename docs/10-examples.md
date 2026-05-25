@@ -65,6 +65,16 @@ service CheckoutService {
     - audit_logging(level: "detailed")
     - circuit_breaker(threshold: 5, timeout: 30s)
 
+  metrics:
+    - counter payment_attempts_total {
+        description: "Total payment attempts"
+        labels: [payment_method, status]
+      }
+    - histogram checkout_value_usd {
+        description: "Distribution of transaction amounts"
+        buckets: [10, 50, 100, 500, 1000]
+      }
+
   budget:
     cost:
       max_total: $0.30
