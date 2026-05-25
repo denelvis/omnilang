@@ -98,6 +98,12 @@ const BUILTIN_TYPES: &[&str] = &[
     "Map",
     "Option",
     "Result",
+    "Confident",
+    "Image",
+    "Screenshot",
+    "Trace",
+    "Log",
+    "Diagram",
 ];
 
 /// Build a symbol table from a parsed source file.
@@ -107,7 +113,7 @@ pub fn build_symbol_table(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) 
     // Register built-in types
     for &name in BUILTIN_TYPES {
         let type_params = match name {
-            "Option" | "List" | "Set" => vec![TypeParamSymbol {
+            "Option" | "List" | "Set" | "Confident" => vec![TypeParamSymbol {
                 name: "T".to_string(),
                 bounds: vec![],
             }],

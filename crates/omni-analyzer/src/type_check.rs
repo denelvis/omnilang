@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use omni_parser::Span;
 use omni_parser::ast::{
     BinaryOperator, Constraint, Declaration, Expression, Field, Literal, RefinedType, SourceFile,
-    TypeKind, TypeRef,
+    TrustLevel, TypeKind, TypeRef,
 };
 
 use crate::symbols::SymbolTable;
@@ -93,6 +93,7 @@ pub fn check_types(file: &SourceFile, symbols: &SymbolTable, diagnostics: &mut V
     check_contracts(file, symbols, diagnostics);
     check_type_narrowing(file, diagnostics);
     check_option_propagation(file, symbols, diagnostics);
+    check_policies(file, diagnostics);
 }
 
 fn check_fields(
@@ -754,6 +755,167 @@ fn check_transitive_propagation(
     }
 }
 
+pub fn compute_confidence_map(file: &SourceFile) -> HashMap<String, (TrustLevel, Vec<String>)> {
+    let mut confidence_map: HashMap<String, (TrustLevel, Vec<String>)> = HashMap::new();
+
+    // 1. Initialize local confidence
+    for decl in &file.declarations {
+        if let Declaration::Service(s) = decl {
+            let mut evidence = Vec::new();
+
+            let has_formal = s.constraints.iter().any(|c| {
+                let name = c.name.to_lowercase();
+                name.contains("verify")
+                    || name.contains("contract")
+                    || name.contains("proven")
+                    || name.contains("formal")
+            });
+            let has_perf = s.constraints.iter().any(|c| {
+                let name = c.name.to_lowercase();
+                name.contains("latency")
+                    || name.contains("throughput")
+                    || name.contains("performance")
+                    || name.contains("slo")
+                    || name.contains("benchmark")
+                    || name.contains("perf")
+            });
+            let has_partial = s.constraints.iter().any(|c| {
+                let name = c.name.to_lowercase();
+                name.contains("fuzz")
+                    || name.contains("security")
+                    || name.contains("chaos")
+                    || name.contains("robustness")
+            });
+            let test_count: usize = s.rpcs.iter().map(|r| r.tests.len()).sum();
+
+            let local_level = if has_formal {
+                evidence.push("Formal verification constraints defined".to_string());
+                TrustLevel::Proven
+            } else if test_count > 0 && has_perf {
+                evidence
+                    .push("Unit/integration tests and performance benchmarks defined".to_string());
+                TrustLevel::High
+            } else if test_count > 0 {
+                evidence.push("Unit/integration tests defined".to_string());
+                TrustLevel::Medium
+            } else if has_partial {
+                evidence.push("Partial fuzzing/security/chaos constraints defined".to_string());
+                TrustLevel::Low
+            } else {
+                evidence.push("No verification evidence defined (speculative)".to_string());
+                TrustLevel::Speculative
+            };
+
+            confidence_map.insert(s.name.clone(), (local_level, evidence));
+        }
+    }
+
+    // 2. Propagate confidence through dependencies (fixed-point iteration)
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for decl in &file.declarations {
+            if let Declaration::Service(s) = decl {
+                if let Some(&(current_level, _)) = confidence_map.get(&s.name) {
+                    let mut min_dep_level = current_level;
+                    let mut propagation_source = None;
+                    for dep in &s.depends_on {
+                        if let Some(&(dep_level, _)) = confidence_map.get(dep) {
+                            if dep_level < min_dep_level {
+                                min_dep_level = dep_level;
+                                propagation_source = Some(dep.clone());
+                            }
+                        }
+                    }
+                    if min_dep_level < current_level {
+                        if let Some(entry) = confidence_map.get_mut(&s.name) {
+                            entry.0 = min_dep_level;
+                            if let Some(src) = propagation_source {
+                                entry.1.push(format!(
+                                    "Confidence limited to {:?} due to dependency on '{}'",
+                                    min_dep_level, src
+                                ));
+                            }
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    confidence_map
+}
+
+fn check_policies(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) {
+    let confidence_map = compute_confidence_map(file);
+
+    for decl in &file.declarations {
+        if let Declaration::Policy(p) = decl {
+            for rule in &p.rules {
+                for clause in &rule.clauses {
+                    let mut required_level = None;
+                    match clause {
+                        omni_parser::ast::PolicyClause::Action { verb, value, .. } => {
+                            if verb.to_lowercase() == "requires" {
+                                let val_str = match value {
+                                    Expression::Identifier(id, _) => Some(id.clone()),
+                                    Expression::Literal(Literal::String(val)) => Some(val.clone()),
+                                    _ => None,
+                                };
+                                if let Some(ref val) = val_str {
+                                    required_level = parse_trust_level(val);
+                                }
+                            }
+                        }
+                        omni_parser::ast::PolicyClause::Simple(text, ..) => {
+                            let text_lower = text.to_lowercase();
+                            if let Some(idx) = text_lower.find("requires ") {
+                                let part = &text[idx + "requires ".len()..];
+                                required_level = parse_trust_level(part.trim());
+                            }
+                        }
+                    }
+
+                    if let Some(req_level) = required_level {
+                        let targets: Vec<String> = if let Some(scope) = &p.scope {
+                            vec![scope.clone()]
+                        } else {
+                            confidence_map.keys().cloned().collect()
+                        };
+
+                        for target in &targets {
+                            if let Some(&(current_level, _)) = confidence_map.get(target) {
+                                if current_level < req_level {
+                                    diagnostics.push(Diagnostic {
+                                        kind: DiagnosticKind::Error,
+                                        message: format!(
+                                            "Service '{}' has confidence level {:?}, which violates trust policy '{}' requiring {:?}",
+                                            target, current_level, p.name, req_level
+                                        ),
+                                        span: p.span,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn parse_trust_level(s: &str) -> Option<TrustLevel> {
+    match s.trim().to_lowercase().as_str() {
+        "speculative" => Some(TrustLevel::Speculative),
+        "low" => Some(TrustLevel::Low),
+        "medium" => Some(TrustLevel::Medium),
+        "high" => Some(TrustLevel::High),
+        "proven" => Some(TrustLevel::Proven),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -784,6 +946,52 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("undefined type"));
         assert!(diags[0].message.contains("NonExistent"));
+    }
+
+    #[test]
+    fn test_confidence_and_policies() {
+        let source = r#"
+module test
+
+service LowTrustService {
+  depends_on: ["ProvenService"]
+  rpc do_something {
+    inputs:
+      id: String
+    outputs:
+      status: String
+  }
+}
+
+service ProvenService {
+  constraints:
+    - contract
+  rpc do_formal {
+    inputs:
+      val: Int
+    outputs:
+      res: Int
+  }
+}
+
+policy ProductionPolicy {
+  rules:
+    - environment == "production":
+      - requires: High
+}
+"#;
+        let diags = parse_and_check(source);
+        assert!(
+            !diags.is_empty(),
+            "expected diagnostics due to trust policy violation"
+        );
+        let messages: Vec<_> = diags.iter().map(|d| d.message.clone()).collect();
+        assert!(
+            messages
+                .iter()
+                .any(|m| m.contains("violates trust policy 'ProductionPolicy'")),
+            "expected trust policy violation message, got: {messages:?}"
+        );
     }
 
     #[test]

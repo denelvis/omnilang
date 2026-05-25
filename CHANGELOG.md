@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-05-25
+
+### Added
+
+- **Confidence Types** (Step 3.1):
+  - `TrustLevel` enum in Rust: `Speculative`, `Low`, `Medium`, `High`, `Proven`
+  - Integrated `Confident<T>` wrapper type as a built-in symbol
+  - Service local confidence calculation based on verification constraints & tests
+  - Dependency-aware confidence propagation through DAG/fixed-point iteration
+  - Trust policies verification (e.g. `production requires High`)
+  - Included confidence levels and evidence chains in SpecIR Service Definitions
+
+- **Visual Testing** (Step 3.2):
+  - Screenshot comparison engine in the TypeScript runtime
+  - Golden files management under `.golden/`
+  - Tolerance configuration (pixel threshold) & ignore regions
+  - Side-by-side textual diff viewer inside the CLI/Console output for visual regressions
+
+- **Performance Testing** (Step 3.3):
+  - Built-in benchmark harness simulator
+  - SLO verification for p50/p95/p99 latency and throughput
+  - Support for load profiles (ramp-up, spike, soak)
+  - Flamegraph visualization mock generation and structured performance evidence logging
+
+- **Security & Chaos Testing** (Step 3.4 & 3.5):
+  - SAST Semgrep rules scanner and dependency vulnerability checker in TypeScript
+  - Input fuzzing simulation for Injection vulnerabilities (SQLi, XSS)
+  - Chaos fault injection framework supporting network partition, service crashes, CPU exhaustion, and clock skew
+  - Resilience verification and recovery time constraint validation
+  - SARIF-compliant security report output format
+
+- **Multimodal Types & UI Components** (Step 3.6 & 3.7):
+  - Registered `Image`, `Screenshot`, `Trace`, `Log`, `Diagram` built-in types
+  - UI Component block slots, props, state, and events validation
+  - Multi-framework code generators (React, Vue, Svelte)
+  - Responsive breakpoints, WCAG accessibility rules, and bundle size constraints validation
+
 ## [0.7.0] - 2026-05-25
 
 ### Added

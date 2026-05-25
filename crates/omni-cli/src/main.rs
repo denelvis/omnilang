@@ -63,6 +63,10 @@ enum Commands {
         /// Maximum build budget in dollars.
         #[arg(long)]
         budget: Option<f64>,
+
+        /// Build a full-stack application (API + UI + data pipeline).
+        #[arg(long)]
+        full_stack: bool,
     },
 
     /// Initialize a new OmniLang project.
@@ -104,7 +108,8 @@ fn main() {
             parallel,
             wire_format,
             budget,
-        } => cmd_build(&path, &target, parallel, &wire_format, budget),
+            full_stack,
+        } => cmd_build(&path, &target, parallel, &wire_format, budget, full_stack),
         Commands::Init { name } => cmd_init(&name),
         Commands::Verify {
             path,
@@ -356,6 +361,7 @@ fn cmd_build(
     parallel: bool,
     wire_format: &str,
     budget: Option<f64>,
+    full_stack: bool,
 ) -> i32 {
     println!(
         "{} Building specifications in: {}",
@@ -536,6 +542,9 @@ fn cmd_build(
 
             if parallel {
                 cmd.arg("--parallel");
+            }
+            if full_stack {
+                cmd.arg("--full-stack");
             }
             // wire_format is deprecated — always JSON, don't pass to runtime
             if let Some(max_budget) = budget {

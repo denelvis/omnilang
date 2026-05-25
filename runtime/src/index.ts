@@ -31,14 +31,18 @@ async function main() {
 
   const outputDir = argv.output || "build";
   const target = argv.target || "typescript";
+  const fullStack = !!argv["full-stack"];
 
   console.log(pc.green(`🚀 Starting OmniLang Generator Runtime`));
   console.log(`   IR Path:   ${pc.cyan(irPath)}`);
   console.log(`   Output:    ${pc.cyan(outputDir)}`);
   console.log(`   Target:    ${pc.cyan(target)}`);
+  if (fullStack) {
+    console.log(`   Mode:      ${pc.cyan("full-stack")}`);
+  }
 
   try {
-    const orchestrator = new Orchestrator({ irPath, outputDir, target });
+    const orchestrator = new Orchestrator({ irPath, outputDir, target, fullStack });
     await orchestrator.run();
     process.exit(0);
   } catch (err: any) {
