@@ -1,0 +1,138 @@
+module acme.phase1
+
+type ProductId = UUID
+type OrderId = UUID
+type OrderSummary = String
+
+type Serializable = struct {
+  id: UUID
+}
+
+type ApiResponse<T: Serializable, E> = struct {
+  data: T
+  error: E?
+}
+
+type PaymentStatus = enum { Success, Failed, Cancelled }
+
+type Value = Int | Float | String?
+
+type OrderIdRefined = String {
+  format: regex("^[0-9]+$")
+  min_length: 5
+}
+
+type Price = {
+  range: [0.0, 9999.9]
+}
+
+component ProductCard {
+  goal: "Render product details with real-time stock"
+  props:
+    id: ProductId
+    label: String
+  state:
+    stock: Int
+  events:
+    - select(id: ProductId)
+  slots:
+    content: String
+  constraints:
+    - latency(p95: 50ms)
+  style_guide: "AcmeDark"
+  visual_spec:
+    - --viewport 375x812
+    - --theme dark
+  tests:
+    - scenario: "Render with stock"
+      given: stock == 5
+      expect: id != null
+}
+
+pipeline DailyRevenueReport {
+  goal: "Aggregate daily revenue"
+  source:
+    type: PostgreSQL
+    table: orders
+  stages:
+    - filter: status == Completed
+  sink:
+    type: S3
+    path: "s3://reports"
+  schedule: "0 6 * * *"
+}
+
+workflow OrderFulfillment {
+  goal: "Manage order lifecycle"
+  states:
+    Placed
+    PaymentPending
+    Shipped
+  transitions:
+    Placed -> PaymentPending:
+      trigger: order_placed
+      action: initiate_payment
+    PaymentPending -> Shipped:
+      trigger: payment_success
+      action: ship_order
+}
+
+agent CustomerSupportAgent {
+  goal: "Handle support inquiries"
+  capabilities:
+    - answer_faq
+  boundaries:
+    - cannot: modify_pricing
+  tools:
+    - OrderLookup(input: OrderId, output: OrderSummary)
+  model:
+    preference: Balanced
+}
+
+schema ECommerceDB {
+  goal: "E-commerce data model"
+  target: postgresql
+  entity Product {
+    id: ProductId @primary
+    name: String @indexed
+  }
+  relations:
+    - Customer has_many Orders
+  indexes:
+    - Order(customer, placed_at)
+}
+
+policy SecurityBaseline {
+  description: "Minimum security requirements"
+  scope: global
+  rules:
+    - all services must:
+        - use TLS 1.3
+        - apply: PCI_DSS_v4
+}
+
+constraint PCI_compliant {
+  requires:
+    - authenticated
+    - audit_logging
+  verification:
+    - tool: SonarQube evidence: "sonar-report.json"
+}
+
+service Checkout {
+  goal: "Perform user checkout"
+  depends_on:
+    - Payments
+  constraints:
+    - PCI_compliant
+}
+
+service Payments {
+  goal: "Process card payments"
+  constraints:
+    - PCI_compliant
+  invariants:
+    - balance >= 0
+    - transaction_count >= 0
+}
+

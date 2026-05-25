@@ -1,0 +1,31 @@
+{
+  "name": "@omnilang/cli",
+  "version": "0.6.0",
+  "description": "OmniLang — the specification language for AI-native development",
+  "license": "(Apache-2.0 OR MIT)",
+  "homepage": "https://github.com/denelvis/omnilang",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/denelvis/omnilang.git"
+  },
+  "bin": {
+    "omni": "bin/omni.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "keywords": [
+    "omnilang",
+    "specification",
+    "ai",
+    "codegen",
+    "verification"
+  ],
+  "files": [
+    "bin/",
+    "scripts/"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

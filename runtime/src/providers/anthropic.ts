@@ -25,7 +25,7 @@ export class AnthropicProvider implements LLMProvider {
   public async generateCode(systemPrompt: string, userPrompt: string): Promise<string> {
     if (this.isMock) {
       console.log(pc.blue("   [MOCK LLM] Simulating Claude 3.5 Sonnet response..."));
-      return this.getMockResponse(userPrompt);
+      return this.getMockResponse(systemPrompt, userPrompt);
     }
 
     if (!this.client) {
@@ -47,11 +47,37 @@ export class AnthropicProvider implements LLMProvider {
     return content.text;
   }
 
-  private getMockResponse(userPrompt: string): string {
+  private getMockResponse(systemPrompt: string, userPrompt: string): string {
     const promptLower = userPrompt.toLowerCase();
 
+    // Detect target from the system prompt
+    if (systemPrompt.toLowerCase().includes("rust")) {
+      return this.getMockRustResponse(promptLower, userPrompt);
+    }
+    if (systemPrompt.toLowerCase().includes("python")) {
+      return this.getMockPythonResponse(promptLower, userPrompt);
+    }
+
+    return this.getMockTypeScriptResponse(promptLower, userPrompt);
+  }
+
+  private extractServiceName(prompt: string): string {
+    // Match the quoted service name from the prompt (e.g., 'service: "AnalyticsService"')
+    const quotedMatch = prompt.match(/service:\s*"([A-Z][a-zA-Z]+)"/);
+    if (quotedMatch) return quotedMatch[1];
+    // Fallback: find a CamelCase word ending in "Service"
+    const svcMatch = prompt.match(/([A-Z][a-zA-Z]*Service)/);
+    if (svcMatch) return svcMatch[1];
+    return "DefaultService";
+  }
+
+  private toSnakeCase(name: string): string {
+    return name.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, "");
+  }
+
+  private getMockTypeScriptResponse(promptLower: string, rawPrompt: string): string {
     // Case 1: Checkout service
-    if (promptLower.includes("checkout")) {
+    if (promptLower.includes("checkoutservice") || promptLower.includes("\"checkout\"")) {
       return JSON.stringify({
         files: [
           {
@@ -173,16 +199,209 @@ describe("GreetingService", () => {
       });
     }
 
-    // Default basic fallback mock
+    // Default basic fallback mock — dynamic name
+    const svcName = this.extractServiceName(rawPrompt);
     return JSON.stringify({
       files: [
         {
-          path: "src/services/Service.ts",
-          content: `export class DefaultService {}`
+          path: `src/services/${svcName}.ts`,
+          content: `export class ${svcName} {
+  public async execute(input: any): Promise<any> {
+    return { success: true };
+  }
+}
+`
         },
         {
-          path: "tests/Service.test.ts",
-          content: `describe("Service", () => { it("passes", () => {}) });`
+          path: `tests/${svcName}.test.ts`,
+          content: `import { ${svcName} } from "../src/services/${svcName}";
+
+describe("${svcName}", () => {
+  it("should execute successfully", async () => {
+    const service = new ${svcName}();
+    const result = await service.execute({});
+    expect(result.success).toBe(true);
+  });
+});
+`
+        }
+      ]
+    });
+  }
+
+  private getMockRustResponse(promptLower: string, rawPrompt: string): string {
+    // Checkout service in Rust
+    if (promptLower.includes("checkoutservice") || promptLower.includes("\"checkout\"")) {
+      return JSON.stringify({
+        files: [
+          {
+            path: "src/services/checkout.rs",
+            content: `use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum CheckoutError {
+    #[error("Customer ID is required")]
+    MissingCustomerId,
+    #[error("Cart is empty")]
+    EmptyCart,
+}
+
+pub struct CheckoutService;
+
+impl CheckoutService {
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// Place an order for a customer with the given items.
+    pub fn place_order(&self, customer_id: &str, items: &[&str]) -> Result<String, CheckoutError> {
+        // Precondition: customer_id must not be empty
+        if customer_id.trim().is_empty() {
+            return Err(CheckoutError::MissingCustomerId);
+        }
+        // Precondition: items must not be empty
+        if items.is_empty() {
+            return Err(CheckoutError::EmptyCart);
+        }
+
+        // Simulate order placement
+        Ok("order-12345".to_string())
+    }
+}
+`
+          },
+          {
+            path: "tests/checkout_test.rs",
+            content: `use omni_build::services::checkout::*;
+
+#[test]
+fn test_place_order_success() {
+    let service = CheckoutService::new();
+    let result = service.place_order("cust_999", &["prod_1"]);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), "order-12345");
+}
+
+#[test]
+fn test_place_order_missing_customer_id() {
+    let service = CheckoutService::new();
+    let result = service.place_order("", &["prod_1"]);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_place_order_empty_cart() {
+    let service = CheckoutService::new();
+    let result = service.place_order("cust_999", &[]);
+    assert!(result.is_err());
+}
+`
+          }
+        ]
+      });
+    }
+
+    // Default fallback for Rust — dynamic name
+    const svcName = this.extractServiceName(rawPrompt);
+    const snakeName = this.toSnakeCase(svcName);
+    return JSON.stringify({
+      files: [
+        {
+          path: `src/services/${snakeName}.rs`,
+          content: `pub struct ${svcName};\n\nimpl ${svcName} {\n    pub fn new() -> Self { Self }\n\n    pub fn execute(&self) -> Result<String, String> {\n        Ok("success".to_string())\n    }\n}\n`
+        },
+        {
+          path: `tests/${snakeName}_test.rs`,
+          content: `use omni_build::services::${snakeName}::*;\n\n#[test]\nfn test_${snakeName}_execute() {\n    let service = ${svcName}::new();\n    let result = service.execute();\n    assert!(result.is_ok());\n}\n`
+        }
+      ]
+    });
+  }
+
+  private getMockPythonResponse(promptLower: string, rawPrompt: string): string {
+    // Checkout service in Python
+    if (promptLower.includes("checkoutservice") || promptLower.includes("\"checkout\"")) {
+      return JSON.stringify({
+        files: [
+          {
+            path: "app/services/checkout.py",
+            content: `from dataclasses import dataclass
+from typing import List
+
+
+class CheckoutError(Exception):
+    """Base error for checkout operations."""
+    pass
+
+
+class MissingCustomerIdError(CheckoutError):
+    """Raised when customer ID is missing."""
+    pass
+
+
+class EmptyCartError(CheckoutError):
+    """Raised when cart is empty."""
+    pass
+
+
+@dataclass
+class OrderResult:
+    order_id: str
+
+
+class CheckoutService:
+    def place_order(self, customer_id: str, items: List[str]) -> OrderResult:
+        """Place an order for a customer with the given items."""
+        # Precondition: customer_id must not be empty
+        if not customer_id or not customer_id.strip():
+            raise MissingCustomerIdError("Customer ID is required")
+        # Precondition: items must not be empty
+        if not items:
+            raise EmptyCartError("Cart is empty")
+
+        # Simulate order placement
+        return OrderResult(order_id="order-12345")
+`
+          },
+          {
+            path: "tests/test_checkout.py",
+            content: `import pytest
+from app.services.checkout import CheckoutService, MissingCustomerIdError, EmptyCartError
+
+
+class TestCheckoutService:
+    def setup_method(self):
+        self.service = CheckoutService()
+
+    def test_place_order_success(self):
+        result = self.service.place_order("cust_999", ["prod_1"])
+        assert result.order_id == "order-12345"
+
+    def test_place_order_missing_customer_id(self):
+        with pytest.raises(MissingCustomerIdError):
+            self.service.place_order("", ["prod_1"])
+
+    def test_place_order_empty_cart(self):
+        with pytest.raises(EmptyCartError):
+            self.service.place_order("cust_999", [])
+`
+          }
+        ]
+      });
+    }
+
+    // Default fallback for Python — dynamic name
+    const svcName = this.extractServiceName(rawPrompt);
+    const snakeName = this.toSnakeCase(svcName);
+    return JSON.stringify({
+      files: [
+        {
+          path: `app/services/${snakeName}.py`,
+          content: `class ${svcName}:\n    def execute(self, **kwargs):\n        return {"success": True}\n`
+        },
+        {
+          path: `tests/test_${snakeName}.py`,
+          content: `from app.services.${snakeName} import ${svcName}\n\n\ndef test_${snakeName}_execute():\n    service = ${svcName}()\n    result = service.execute()\n    assert result["success"] is True\n`
         }
       ]
     });

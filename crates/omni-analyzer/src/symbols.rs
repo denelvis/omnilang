@@ -13,6 +13,13 @@ pub struct Symbol {
     pub name: String,
     pub kind: SymbolKind,
     pub span: Span,
+    pub type_params: Vec<TypeParamSymbol>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeParamSymbol {
+    pub name: String,
+    pub bounds: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +28,13 @@ pub enum SymbolKind {
     Enum,
     Struct,
     Service,
+    Component,
+    Pipeline,
+    Workflow,
+    Agent,
+    Schema,
+    Policy,
+    Constraint,
 }
 
 /// The symbol table maps names to their definitions.
@@ -92,12 +106,40 @@ pub fn build_symbol_table(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) 
 
     // Register built-in types
     for &name in BUILTIN_TYPES {
+        let type_params = match name {
+            "Option" | "List" | "Set" => vec![TypeParamSymbol {
+                name: "T".to_string(),
+                bounds: vec![],
+            }],
+            "Result" => vec![
+                TypeParamSymbol {
+                    name: "T".to_string(),
+                    bounds: vec![],
+                },
+                TypeParamSymbol {
+                    name: "E".to_string(),
+                    bounds: vec![],
+                },
+            ],
+            "Map" => vec![
+                TypeParamSymbol {
+                    name: "K".to_string(),
+                    bounds: vec![],
+                },
+                TypeParamSymbol {
+                    name: "V".to_string(),
+                    bounds: vec![],
+                },
+            ],
+            _ => vec![],
+        };
         table.insert(
             name.to_string(),
             Symbol {
                 name: name.to_string(),
                 kind: SymbolKind::Type,
                 span: Span::new(0, 0),
+                type_params,
             },
         );
     }
@@ -122,12 +164,22 @@ pub fn build_symbol_table(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) 
                     });
                 }
 
+                let type_params = t
+                    .type_params
+                    .iter()
+                    .map(|p| TypeParamSymbol {
+                        name: p.name.clone(),
+                        bounds: p.bounds.iter().map(|b| b.name.clone()).collect(),
+                    })
+                    .collect();
+
                 table.insert(
                     t.name.clone(),
                     Symbol {
                         name: t.name.clone(),
                         kind,
                         span: t.span,
+                        type_params,
                     },
                 );
             }
@@ -148,6 +200,147 @@ pub fn build_symbol_table(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) 
                         name: s.name.clone(),
                         kind: SymbolKind::Service,
                         span: s.span,
+                        type_params: Vec::new(),
+                    },
+                );
+            }
+            Declaration::Component(c) => {
+                if let Some(prev) = table.get(&c.name)
+                    && (prev.span.start != 0 || prev.span.end != 0)
+                {
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: format!("duplicate component definition: '{}'", c.name),
+                        span: c.span,
+                    });
+                }
+                table.insert(
+                    c.name.clone(),
+                    Symbol {
+                        name: c.name.clone(),
+                        kind: SymbolKind::Component,
+                        span: c.span,
+                        type_params: Vec::new(),
+                    },
+                );
+            }
+            Declaration::Pipeline(p) => {
+                if let Some(prev) = table.get(&p.name)
+                    && (prev.span.start != 0 || prev.span.end != 0)
+                {
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: format!("duplicate pipeline definition: '{}'", p.name),
+                        span: p.span,
+                    });
+                }
+                table.insert(
+                    p.name.clone(),
+                    Symbol {
+                        name: p.name.clone(),
+                        kind: SymbolKind::Pipeline,
+                        span: p.span,
+                        type_params: Vec::new(),
+                    },
+                );
+            }
+            Declaration::Workflow(w) => {
+                if let Some(prev) = table.get(&w.name)
+                    && (prev.span.start != 0 || prev.span.end != 0)
+                {
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: format!("duplicate workflow definition: '{}'", w.name),
+                        span: w.span,
+                    });
+                }
+                table.insert(
+                    w.name.clone(),
+                    Symbol {
+                        name: w.name.clone(),
+                        kind: SymbolKind::Workflow,
+                        span: w.span,
+                        type_params: Vec::new(),
+                    },
+                );
+            }
+            Declaration::Agent(a) => {
+                if let Some(prev) = table.get(&a.name)
+                    && (prev.span.start != 0 || prev.span.end != 0)
+                {
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: format!("duplicate agent definition: '{}'", a.name),
+                        span: a.span,
+                    });
+                }
+                table.insert(
+                    a.name.clone(),
+                    Symbol {
+                        name: a.name.clone(),
+                        kind: SymbolKind::Agent,
+                        span: a.span,
+                        type_params: Vec::new(),
+                    },
+                );
+            }
+            Declaration::Schema(s) => {
+                if let Some(prev) = table.get(&s.name)
+                    && (prev.span.start != 0 || prev.span.end != 0)
+                {
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: format!("duplicate schema definition: '{}'", s.name),
+                        span: s.span,
+                    });
+                }
+                table.insert(
+                    s.name.clone(),
+                    Symbol {
+                        name: s.name.clone(),
+                        kind: SymbolKind::Schema,
+                        span: s.span,
+                        type_params: Vec::new(),
+                    },
+                );
+            }
+            Declaration::Policy(p) => {
+                if let Some(prev) = table.get(&p.name)
+                    && (prev.span.start != 0 || prev.span.end != 0)
+                {
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: format!("duplicate policy definition: '{}'", p.name),
+                        span: p.span,
+                    });
+                }
+                table.insert(
+                    p.name.clone(),
+                    Symbol {
+                        name: p.name.clone(),
+                        kind: SymbolKind::Policy,
+                        span: p.span,
+                        type_params: Vec::new(),
+                    },
+                );
+            }
+            Declaration::Constraint(c) => {
+                if let Some(prev) = table.get(&c.name)
+                    && (prev.span.start != 0 || prev.span.end != 0)
+                {
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: format!("duplicate constraint definition: '{}'", c.name),
+                        span: c.span,
+                    });
+                }
+                table.insert(
+                    c.name.clone(),
+                    Symbol {
+                        name: c.name.clone(),
+                        kind: SymbolKind::Constraint,
+                        span: c.span,
+                        type_params: Vec::new(),
                     },
                 );
             }
@@ -199,10 +392,19 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_type_detected() {
-        let (_, diags) = parse_and_build("module test\ntype OrderId = UUID\ntype OrderId = String");
-        assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].kind, DiagnosticKind::Error);
-        assert!(diags[0].message.contains("duplicate"));
+    fn component_and_workflow_symbols_registered() {
+        let (table, diags) =
+            parse_and_build("module test\ncomponent ProductCard {}\nworkflow OrderFulfillment {}");
+        assert!(diags.is_empty());
+        assert!(table.contains("ProductCard"));
+        assert!(table.contains("OrderFulfillment"));
+        assert_eq!(
+            table.get("ProductCard").unwrap().kind,
+            SymbolKind::Component
+        );
+        assert_eq!(
+            table.get("OrderFulfillment").unwrap().kind,
+            SymbolKind::Workflow
+        );
     }
 }

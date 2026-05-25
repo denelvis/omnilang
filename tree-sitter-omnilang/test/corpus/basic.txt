@@ -14,14 +14,17 @@ service GreetingService {
 
 (source_file
   (module_declaration
-    name: (dotted_name (identifier)))
+    name: (dotted_name
+      (identifier)))
   (type_declaration
     name: (identifier)
-    kind: (type_ref name: (identifier)))
+    kind: (type_ref
+      name: (identifier)))
   (service_declaration
     name: (identifier)
     (service_block
-      (goal_section (string_literal)))))
+      (goal_section
+        (string_literal)))))
 
 ==================
 Complete RPC Service
@@ -50,7 +53,8 @@ service GreetingService {
 
 (source_file
   (module_declaration
-    name: (dotted_name (identifier)))
+    name: (dotted_name
+      (identifier)))
   (service_declaration
     name: (identifier)
     (service_block
@@ -60,38 +64,48 @@ service GreetingService {
           (inputs_section
             (field
               name: (identifier)
-              type: (type_ref name: (identifier))))
+              type: (type_ref
+                name: (identifier))))
           (outputs_section
             (field
               name: (identifier)
-              type: (type_ref name: (identifier))))
+              type: (type_ref
+                name: (identifier))))
           (preconditions_section
             (expression
               (binary_expression
-                (expression (identifier))
-                (expression (string_literal)))))
+                (expression
+                  (identifier))
+                (expression
+                  (string_literal)))))
           (postconditions_section
             (expression
               (binary_expression
                 (expression
                   (field_expression
-                    (expression (identifier))
+                    (expression
+                      (identifier))
                     (identifier)))
-                (expression (string_literal)))))
+                (expression
+                  (string_literal)))))
           (tests_section
             (scenario_block
               name: (string_literal)
               (expression
                 (binary_expression
-                  (expression (identifier))
-                  (expression (string_literal))))
+                  (expression
+                    (identifier))
+                  (expression
+                    (string_literal))))
               (expression
                 (binary_expression
                   (expression
                     (field_expression
-                      (expression (identifier))
+                      (expression
+                        (identifier))
                       (identifier)))
-                  (expression (string_literal)))))))))))
+                  (expression
+                    (string_literal)))))))))))
 
 ==================
 Service with Metrics
@@ -111,7 +125,8 @@ service GreetingService {
 
 (source_file
   (module_declaration
-    name: (dotted_name (identifier)))
+    name: (dotted_name
+      (identifier)))
   (service_declaration
     name: (identifier)
     (service_block
@@ -121,6 +136,318 @@ service GreetingService {
           name: (identifier)
           (block
             (identifier)
-            (expression (string_literal))
+            (expression
+              (string_literal))
             (identifier)
-            (expression (list_expression (expression (identifier))))))))))
+            (expression
+              (list_expression
+                (expression
+                  (identifier))))))))))
+
+==================
+Phase 1 Blocks
+==================
+
+module test
+
+component ProductCard {
+  goal: "Render product details"
+  props:
+    id: ProductId
+  visual_spec:
+    - --viewport 375x812
+}
+
+pipeline DailyReport {
+  source:
+    type: PostgreSQL
+  stages:
+    - filter: status == Completed
+}
+
+workflow OrderFulfillment {
+  states:
+    Placed
+  transitions:
+    Placed -> Shipped:
+      trigger: ship_order
+}
+
+agent SupportAgent {
+  capabilities:
+    - answer_faq
+  boundaries:
+    - cannot: modify_pricing
+  tools:
+    - OrderLookup(input: OrderId, output: OrderSummary)
+}
+
+schema ShopDB {
+  entity Product {
+    id: ProductId @primary
+  }
+}
+
+policy SecurityPolicy {
+  description: "Security rules"
+  scope: global
+  rules:
+    - all services must:
+        - use TLS 1.3
+}
+
+---
+
+(source_file
+  (module_declaration
+    name: (dotted_name
+      (identifier)))
+  (component_declaration
+    name: (identifier)
+    (goal_section
+      (string_literal))
+    (props_section
+      (field
+        name: (identifier)
+        type: (type_ref
+          name: (identifier))))
+    (visual_spec_section
+      spec: (visual_spec_item
+        (identifier)
+        (integer_literal)
+        (identifier))))
+  (pipeline_declaration
+    name: (identifier)
+    (source_section
+      (config_entry
+        key: (identifier)
+        value: (expression
+          (identifier))))
+    (stages_section
+      (pipeline_stage
+        (config_entry
+          key: (identifier)
+          value: (expression
+            (binary_expression
+              (expression
+                (identifier))
+              (expression
+                (identifier))))))))
+  (workflow_declaration
+    name: (identifier)
+    (states_section
+      state: (identifier))
+    (transitions_section
+      (workflow_transition
+        from: (identifier)
+        to: (identifier)
+        trigger: (identifier))))
+  (agent_declaration
+    name: (identifier)
+    (capabilities_section
+      capability: (identifier))
+    (boundaries_section
+      (agent_boundary
+        expr: (expression
+          (identifier))))
+    (tools_section
+      (agent_tool
+        name: (identifier)
+        (agent_tool_param
+          type: (type_ref
+            name: (identifier)))
+        (agent_tool_param
+          type: (type_ref
+            name: (identifier))))))
+  (schema_declaration
+    name: (identifier)
+    (entity_declaration
+      name: (identifier)
+      (entity_field
+        name: (identifier)
+        type: (type_ref
+          name: (identifier))
+        (decorator
+          name: (identifier)))))
+  (policy_declaration
+    name: (identifier)
+    (description_section
+      (string_literal))
+    (scope_section
+      (identifier))
+    (rules_section
+      (policy_rule
+        condition: (policy_condition
+          (identifier)
+          (identifier)
+          (identifier))
+        (policy_clause
+          (policy_simple_clause
+            (identifier)
+            (identifier)
+            (float_literal)))))))
+
+==================
+Extended Types
+==================
+
+module test
+
+type ApiResponse<T: Serializable + Clone, E> = struct {
+  data: T
+  error: E?
+}
+
+type Value = Int | Float | String?
+
+type AdminUser = Logged & Authenticated
+
+type OrderId = {
+  format: regex("^[0-9]+$")
+}
+
+type ShortString = String {
+  max_length: 10
+}
+
+---
+
+(source_file
+  (module_declaration
+    name: (dotted_name
+      (identifier)))
+  (type_declaration
+    name: (identifier)
+    type_params: (type_parameters
+      (type_parameter
+        name: (identifier)
+        (type_bounds
+          (type_ref
+            name: (identifier))
+          (type_ref
+            name: (identifier))))
+      (type_parameter
+        name: (identifier)))
+    kind: (struct_type
+      (block
+        (field
+          name: (identifier)
+          type: (type_ref
+            name: (identifier)))
+        (field
+          name: (identifier)
+          type: (type_ref
+            (type_ref
+              name: (identifier)))))))
+  (type_declaration
+    name: (identifier)
+    kind: (type_ref
+      (type_ref
+        (type_ref
+          name: (identifier))
+        (type_ref
+          name: (identifier)))
+      (type_ref
+        (type_ref
+          name: (identifier)))))
+  (type_declaration
+    name: (identifier)
+    kind: (type_ref
+      (type_ref
+        name: (identifier))
+      (type_ref
+        name: (identifier))))
+  (type_declaration
+    name: (identifier)
+    kind: (refined_type
+      (block
+        (identifier)
+        (expression
+          (call_expression
+            function: (identifier)
+            (expression
+              (string_literal)))))))
+  (type_declaration
+    name: (identifier)
+    kind: (refined_type
+      base: (type_ref
+        name: (identifier))
+      (block
+        (identifier)
+        (expression
+          (integer_literal))))))
+
+==================
+Constraint Declarations
+==================
+
+module hello
+
+constraint PCI_compliant {
+  requires:
+    - authenticated
+    - audit_logging
+  verification:
+    - tool: SonarQube evidence: "sonar-report.json"
+}
+
+---
+
+(source_file
+  (module_declaration
+    name: (dotted_name
+      (identifier)))
+  (constraint_declaration
+    name: (identifier)
+    (requires_section
+      (constraint_item
+        name: (identifier))
+      (constraint_item
+        name: (identifier)))
+    (verification_section
+      (verification_entry
+        (config_entry
+          key: (identifier)
+          value: (expression
+            (identifier)))
+        (config_entry
+          key: (identifier)
+          value: (expression
+            (string_literal)))))))
+
+==================
+Service with Invariants
+==================
+
+module hello
+
+service GreetingService {
+  invariants:
+    - balance >= 0
+    - count < 100
+}
+
+---
+
+(source_file
+  (module_declaration
+    name: (dotted_name
+      (identifier)))
+  (service_declaration
+    name: (identifier)
+    (service_block
+      (invariants_section
+        (expression
+          (binary_expression
+            (expression
+              (identifier))
+            (expression
+              (integer_literal))))
+        (expression
+          (binary_expression
+            (expression
+              (identifier))
+            (expression
+              (integer_literal))))))))
+
+

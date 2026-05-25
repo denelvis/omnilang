@@ -11,9 +11,13 @@
 "agent" @keyword
 "schema" @keyword
 "policy" @keyword
+"constraint" @keyword
+"requires" @keyword
+"verification" @keyword
 "rpc" @keyword
 "goal" @keyword
 "constraints" @keyword
+"invariants" @keyword
 "metrics" @keyword
 "counter" @keyword
 "gauge" @keyword
@@ -34,8 +38,22 @@
 "assert" @keyword
 "in" @keyword
 "as" @keyword
+"entity" @keyword
+"relations" @keyword
+"indexes" @keyword
+"cannot" @keyword
+"must" @keyword
+"style_guide" @keyword
+"visual_spec" @keyword
+"description" @keyword
+"scope" @keyword
+"capabilities" @keyword
+"boundaries" @keyword
+"tools" @keyword
+"model" @keyword
 
 ; Operators
+"@" @operator
 "==" @operator
 "!=" @operator
 "<" @operator
@@ -47,6 +65,9 @@
 "!" @operator
 ".." @operator
 "..<" @operator
+"|" @operator
+"&" @operator
+"?" @operator
 
 ; Literals
 (integer_literal) @number
@@ -73,6 +94,8 @@
   name: (identifier) @type)
 (rpc_declaration
   name: (identifier) @function)
+(constraint_declaration
+  name: (identifier) @type)
 
 ; Fields
 (field

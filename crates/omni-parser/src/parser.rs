@@ -58,11 +58,48 @@ impl Parser {
                         declarations.push(Declaration::Service(decl));
                     }
                 }
+                TokenKind::KwComponent => {
+                    if let Some(decl) = self.parse_component_decl() {
+                        declarations.push(Declaration::Component(decl));
+                    }
+                }
+                TokenKind::KwPipeline => {
+                    if let Some(decl) = self.parse_pipeline_decl() {
+                        declarations.push(Declaration::Pipeline(decl));
+                    }
+                }
+                TokenKind::KwWorkflow => {
+                    if let Some(decl) = self.parse_workflow_decl() {
+                        declarations.push(Declaration::Workflow(decl));
+                    }
+                }
+                TokenKind::KwAgent => {
+                    if let Some(decl) = self.parse_agent_decl() {
+                        declarations.push(Declaration::Agent(decl));
+                    }
+                }
+                TokenKind::KwSchema => {
+                    if let Some(decl) = self.parse_schema_decl() {
+                        declarations.push(Declaration::Schema(decl));
+                    }
+                }
+                TokenKind::KwPolicy => {
+                    if let Some(decl) = self.parse_policy_decl() {
+                        declarations.push(Declaration::Policy(decl));
+                    }
+                }
+                TokenKind::KwConstraint => {
+                    if let Some(decl) = self.parse_constraint_decl() {
+                        declarations.push(Declaration::Constraint(decl));
+                    } else {
+                        self.advance();
+                    }
+                }
                 TokenKind::Eof => break,
                 _ => {
                     let tok = self.advance();
                     self.errors.push(ParseError::Expected {
-                        expected: "top-level declaration (type, service, use)".to_string(),
+                        expected: "top-level declaration (type, service, component, pipeline, workflow, agent, schema, policy, use)".to_string(),
                         found: format!("'{}'", tok.text),
                         span: tok.span,
                     });
@@ -201,7 +238,42 @@ impl Parser {
         let name_tok = self.advance();
         let name = name_tok.text.clone();
 
-        // Check for `=` (alias, enum, struct) or `{` (refined)
+        // Parse optional type parameters, e.g. <T: Bound1 + Bound2, U>
+        let mut type_params = Vec::new();
+        if self.check(TokenKind::Lt) {
+            self.advance(); // consume '<'
+            loop {
+                let pstart = self.current_span();
+                let pname_tok = self.advance();
+                let pname = pname_tok.text.clone();
+                let mut bounds = Vec::new();
+                if self.check(TokenKind::Colon) {
+                    self.advance(); // consume ':'
+                    loop {
+                        bounds.push(self.parse_type_ref());
+                        if self.check(TokenKind::Plus) {
+                            self.advance(); // consume '+'
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                let pend = self.previous_span();
+                type_params.push(TypeParam {
+                    name: pname,
+                    bounds,
+                    span: pstart.merge(pend),
+                });
+                if self.check(TokenKind::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+            self.expect(TokenKind::Gt);
+        }
+
+        // Check for `=` (alias, enum, struct, refined)
         if self.check(TokenKind::Eq) {
             self.advance(); // consume '='
 
@@ -212,6 +284,7 @@ impl Parser {
                     let end = self.previous_span();
                     return Some(TypeDecl {
                         name,
+                        type_params,
                         kind,
                         span: start.merge(end),
                     });
@@ -222,7 +295,23 @@ impl Parser {
                     let end = self.previous_span();
                     return Some(TypeDecl {
                         name,
+                        type_params,
                         kind,
+                        span: start.merge(end),
+                    });
+                }
+                TokenKind::BraceOpen => {
+                    // Refined type without base type: `type OrderId = { format: regex(...) }`
+                    let constraints = self.parse_type_constraints();
+                    let end = self.previous_span();
+                    return Some(TypeDecl {
+                        name,
+                        type_params,
+                        kind: TypeKind::Refined(RefinedType {
+                            base: None,
+                            constraints,
+                            span: start.merge(end),
+                        }),
                         span: start.merge(end),
                     });
                 }
@@ -232,13 +321,14 @@ impl Parser {
                     let type_ref = self.parse_type_ref();
 
                     if self.check(TokenKind::BraceOpen) {
-                        // Refined type: `type OrderId = String { format: regex(...) }`
+                        // Refined type with base type: `type OrderId = String { format: regex(...) }`
                         let constraints = self.parse_type_constraints();
                         let end = self.previous_span();
                         return Some(TypeDecl {
                             name,
+                            type_params,
                             kind: TypeKind::Refined(RefinedType {
-                                base: type_ref,
+                                base: Some(type_ref),
                                 constraints,
                                 span: start.merge(end),
                             }),
@@ -250,6 +340,7 @@ impl Parser {
                     let end = self.previous_span();
                     return Some(TypeDecl {
                         name,
+                        type_params,
                         kind: TypeKind::Alias(type_ref),
                         span: start.merge(end),
                     });
@@ -331,7 +422,7 @@ impl Parser {
         constraints
     }
 
-    fn parse_type_ref(&mut self) -> TypeRef {
+    fn parse_base_type_ref(&mut self) -> TypeRef {
         let start = self.current_span();
         let tok = self.advance();
         let name = tok.text;
@@ -354,8 +445,80 @@ impl Parser {
         TypeRef {
             name,
             type_args,
+            union_members: Vec::new(),
+            intersection_members: Vec::new(),
             span: start.merge(end),
         }
+    }
+
+    fn parse_type_ref(&mut self) -> TypeRef {
+        self.parse_type_ref_prec(0)
+    }
+
+    fn parse_type_ref_prec(&mut self, min_prec: u8) -> TypeRef {
+        let mut ty = self.parse_base_type_ref();
+
+        // Handle postfix '?' (highest precedence)
+        if self.check(TokenKind::Question) {
+            let q_span = self.current_span();
+            self.advance(); // consume '?'
+            let span = ty.span.merge(q_span);
+            ty = TypeRef {
+                name: "Option".to_string(),
+                type_args: vec![ty],
+                union_members: Vec::new(),
+                intersection_members: Vec::new(),
+                span,
+            };
+        }
+
+        loop {
+            let op_prec = match self.peek_kind() {
+                TokenKind::Pipe => 1,
+                TokenKind::Amp => 2,
+                _ => 0,
+            };
+
+            if op_prec == 0 || op_prec < min_prec {
+                break;
+            }
+
+            let op = self.peek_kind();
+            self.advance(); // consume '|' or '&'
+
+            let right = self.parse_type_ref_prec(op_prec + 1);
+            let span = ty.span.merge(right.span);
+
+            if op == TokenKind::Pipe {
+                if ty.name == "Union" {
+                    ty.union_members.push(right);
+                    ty.span = span;
+                } else {
+                    ty = TypeRef {
+                        name: "Union".to_string(),
+                        type_args: Vec::new(),
+                        union_members: vec![ty, right],
+                        intersection_members: Vec::new(),
+                        span,
+                    };
+                }
+            } else {
+                if ty.name == "Intersection" {
+                    ty.intersection_members.push(right);
+                    ty.span = span;
+                } else {
+                    ty = TypeRef {
+                        name: "Intersection".to_string(),
+                        type_args: Vec::new(),
+                        union_members: Vec::new(),
+                        intersection_members: vec![ty, right],
+                        span,
+                    };
+                }
+            }
+        }
+
+        ty
     }
 
     fn parse_field_list(&mut self, open: TokenKind, close: TokenKind) -> Vec<Field> {
@@ -363,6 +526,10 @@ impl Parser {
         let mut fields = Vec::new();
 
         while !self.check(close) && !self.is_at_end() {
+            if self.check(TokenKind::Comma) {
+                self.advance();
+                continue;
+            }
             let start = self.current_span();
             let name_tok = self.advance();
             let name = name_tok.text;
@@ -407,6 +574,7 @@ impl Parser {
         let mut rpcs = Vec::new();
         let mut budget = None;
         let mut metrics = Vec::new();
+        let mut invariants = Vec::new();
 
         while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
             match self.peek_kind() {
@@ -443,6 +611,11 @@ impl Parser {
                     self.expect(TokenKind::Colon);
                     metrics = self.parse_metrics_list();
                 }
+                TokenKind::KwInvariants => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    invariants = self.parse_expression_list();
+                }
                 _ => {
                     // Skip unknown tokens inside service
                     self.advance();
@@ -461,6 +634,7 @@ impl Parser {
             rpcs,
             budget,
             metrics,
+            invariants,
             span: start.merge(end),
         })
     }
@@ -693,7 +867,7 @@ impl Parser {
         // Stop when we hit a section keyword (inputs, outputs, etc.)
         while (self.check(TokenKind::Ident) || self.peek_kind().is_keyword())
             && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon)
-            && !self.is_section_keyword(self.peek_kind())
+            && !self.is_section_keyword(self.peek())
             && !self.is_at_end()
         {
             let start = self.current_span();
@@ -835,12 +1009,35 @@ impl Parser {
                             TokenKind::KwForall => {
                                 self.advance();
                                 self.expect(TokenKind::Colon);
-                                // Simplified: parse as expression
-                                quantifiers.push(Quantifier {
-                                    name: "x".to_string(),
-                                    generator: self.parse_expression(),
-                                    span: self.previous_span(),
-                                });
+                                loop {
+                                    let name_tok = self.advance();
+                                    let name = name_tok.text.clone();
+
+                                    if self.check(TokenKind::KwIn) {
+                                        self.advance();
+                                    } else if self.check(TokenKind::Lt)
+                                        && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Minus)
+                                    {
+                                        self.advance(); // consume '<'
+                                        self.advance(); // consume '-'
+                                    } else {
+                                        self.expect(TokenKind::KwIn);
+                                    }
+
+                                    let generator = self.parse_expression();
+                                    let span = name_tok.span.merge(self.previous_span());
+                                    quantifiers.push(Quantifier {
+                                        name,
+                                        generator,
+                                        span,
+                                    });
+
+                                    if self.check(TokenKind::Comma) {
+                                        self.advance();
+                                    } else {
+                                        break;
+                                    }
+                                }
                             }
                             TokenKind::KwGiven => {
                                 self.advance();
@@ -1074,7 +1271,9 @@ impl Parser {
     fn parse_additive(&mut self) -> Expression {
         let mut left = self.parse_unary();
 
-        while self.check(TokenKind::Plus) || self.check(TokenKind::Minus) {
+        while self.check(TokenKind::Plus)
+            || (self.check(TokenKind::Minus) && !self.is_bullet_point())
+        {
             let _op_tok = self.advance();
             let right = self.parse_unary();
             let span = left.span().merge(self.previous_span());
@@ -1147,6 +1346,7 @@ impl Parser {
                     let span = start.merge(self.previous_span());
                     expr = Expression::Call {
                         function: name,
+                        type_args: None,
                         args,
                         span,
                     };
@@ -1223,6 +1423,22 @@ impl Parser {
                 let expr = self.parse_expression();
                 self.expect(TokenKind::ParenClose);
                 expr
+            }
+            TokenKind::Ident
+                if self.peek_text() == "arbitrary"
+                    && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Lt) =>
+            {
+                let tok = self.advance(); // consume "arbitrary"
+                self.expect(TokenKind::Lt);
+                let type_arg = self.parse_type_ref();
+                self.expect(TokenKind::Gt);
+                let span = tok.span.merge(self.previous_span());
+                Expression::Call {
+                    function: "arbitrary".to_string(),
+                    type_args: Some(vec![type_arg]),
+                    args: Vec::new(),
+                    span,
+                }
             }
             TokenKind::Ident | TokenKind::KwOld | TokenKind::KwSelfKw => {
                 let tok = self.advance();
@@ -1325,10 +1541,13 @@ impl Parser {
         }
     }
 
-    /// Check if a token kind is a section keyword (used as headers in RPC/service blocks).
-    fn is_section_keyword(&self, kind: TokenKind) -> bool {
+    /// Check if a token is a section keyword (used as headers in RPC/service/component/etc. blocks).
+    fn is_section_keyword(&self, token: &Token) -> bool {
+        if token.text == "constraints" {
+            return true;
+        }
         matches!(
-            kind,
+            token.kind,
             TokenKind::KwInputs
                 | TokenKind::KwOutputs
                 | TokenKind::KwErrors
@@ -1340,7 +1559,938 @@ impl Parser {
                 | TokenKind::KwBudget
                 | TokenKind::KwDependsOn
                 | TokenKind::KwRpc
+                | TokenKind::KwProps
+                | TokenKind::KwState
+                | TokenKind::KwEvents
+                | TokenKind::KwSlots
+                | TokenKind::KwSource
+                | TokenKind::KwStages
+                | TokenKind::KwSink
+                | TokenKind::KwStates
+                | TokenKind::KwTransitions
+                | TokenKind::KwTriggers
+                | TokenKind::KwRules
+                | TokenKind::KwSchedule
+                | TokenKind::KwCapabilities
+                | TokenKind::KwBoundaries
+                | TokenKind::KwTools
+                | TokenKind::KwModel
+                | TokenKind::KwStyleGuide
+                | TokenKind::KwVisualSpec
+                | TokenKind::KwDescription
+                | TokenKind::KwScope
+                | TokenKind::KwTarget
+                | TokenKind::KwEntity
+                | TokenKind::KwRelations
+                | TokenKind::KwIndexes
         )
+    }
+
+    fn is_bullet_point(&self) -> bool {
+        if !self.check(TokenKind::Minus) {
+            return false;
+        }
+        if let Some(next) = self.peek_at(1) {
+            self.peek().span.end < next.span.start
+        } else {
+            true
+        }
+    }
+
+    fn parse_component_decl(&mut self) -> Option<ComponentDecl> {
+        let start = self.current_span();
+        self.advance(); // consume 'component'
+
+        let name_tok = self.advance();
+        let name = name_tok.text.clone();
+
+        self.expect(TokenKind::BraceOpen);
+
+        let mut goal = None;
+        let mut props = Vec::new();
+        let mut state = Vec::new();
+        let mut events = Vec::new();
+        let mut slots = Vec::new();
+        let mut constraints = Vec::new();
+        let mut style_guide = None;
+        let mut visual_spec = Vec::new();
+        let mut tests = Vec::new();
+
+        while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+            match self.peek_kind() {
+                TokenKind::KwGoal => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    if self.check(TokenKind::StringLiteral) {
+                        let tok = self.advance();
+                        goal = Some(tok.text[1..tok.text.len() - 1].to_string());
+                    }
+                }
+                TokenKind::KwProps => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    props = self.parse_inline_fields();
+                }
+                TokenKind::KwState => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    state = self.parse_inline_fields();
+                }
+                TokenKind::KwEvents => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while self.check(TokenKind::Minus) {
+                        self.advance(); // consume '-'
+                        let start_event = self.current_span();
+                        let event_name = self.advance().text;
+                        let params = if self.check(TokenKind::ParenOpen) {
+                            self.parse_field_list(TokenKind::ParenOpen, TokenKind::ParenClose)
+                        } else {
+                            Vec::new()
+                        };
+                        let end_event = self.previous_span();
+                        events.push(EventDecl {
+                            name: event_name,
+                            params,
+                            span: start_event.merge(end_event),
+                        });
+                    }
+                }
+                TokenKind::KwSlots => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    slots = self.parse_inline_fields();
+                }
+                TokenKind::KwStyleGuide => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    if self.check(TokenKind::StringLiteral) {
+                        let tok = self.advance();
+                        style_guide = Some(tok.text[1..tok.text.len() - 1].to_string());
+                    } else if self.check(TokenKind::Ident) {
+                        style_guide = Some(self.advance().text);
+                    }
+                }
+                TokenKind::KwVisualSpec => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while self.is_bullet_point() {
+                        self.advance(); // consume '-'
+                        let mut spec_str = String::new();
+                        let mut last_end = 0;
+                        while !self.is_bullet_point()
+                            && !self.check(TokenKind::BraceClose)
+                            && !self.is_section_keyword(self.peek())
+                            && !self.is_at_end()
+                        {
+                            let tok = self.advance();
+                            if last_end > 0 && tok.span.start > last_end {
+                                spec_str.push(' ');
+                            }
+                            spec_str.push_str(&tok.text);
+                            last_end = tok.span.end;
+                        }
+                        visual_spec.push(spec_str.trim().to_string());
+                    }
+                }
+                TokenKind::KwTests => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    tests = self.parse_test_list();
+                }
+                TokenKind::Ident if self.peek_text() == "constraints" => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    constraints = self.parse_constraint_list();
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+
+        self.expect(TokenKind::BraceClose);
+        let end = self.previous_span();
+
+        Some(ComponentDecl {
+            name,
+            goal,
+            props,
+            state,
+            events,
+            slots,
+            constraints,
+            style_guide,
+            visual_spec,
+            tests,
+            span: start.merge(end),
+        })
+    }
+
+    fn parse_pipeline_decl(&mut self) -> Option<PipelineDecl> {
+        let start = self.current_span();
+        self.advance(); // consume 'pipeline'
+
+        let name_tok = self.advance();
+        let name = name_tok.text.clone();
+
+        self.expect(TokenKind::BraceOpen);
+
+        let mut goal = None;
+        let mut source = Vec::new();
+        let mut stages = Vec::new();
+        let mut sink = Vec::new();
+        let mut constraints = Vec::new();
+        let mut schedule = None;
+        let mut tests = Vec::new();
+
+        while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+            match self.peek_kind() {
+                TokenKind::KwGoal => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    if self.check(TokenKind::StringLiteral) {
+                        let tok = self.advance();
+                        goal = Some(tok.text[1..tok.text.len() - 1].to_string());
+                    }
+                }
+                TokenKind::KwSource => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    source = self.parse_config_entries();
+                }
+                TokenKind::KwSink => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    sink = self.parse_config_entries();
+                }
+                TokenKind::KwStages => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while self.check(TokenKind::Minus) {
+                        self.advance(); // consume '-'
+                        let start_stage = self.current_span();
+                        let mut stage_name = "unnamed".to_string();
+                        let mut entries = Vec::new();
+
+                        while (self.check(TokenKind::Ident) || self.peek_kind().is_keyword())
+                            && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon)
+                            && !self.is_section_keyword(self.peek())
+                        {
+                            let key = self.advance().text;
+                            self.advance(); // consume ':'
+                            let val = self.parse_expression();
+                            let entry_end = self.previous_span();
+                            if key == "name" {
+                                if let Expression::Literal(Literal::String(s)) = &val {
+                                    stage_name = s.clone();
+                                } else {
+                                    stage_name = format!("{:?}", val);
+                                }
+                            }
+                            entries.push(ConfigEntry {
+                                key,
+                                value: val,
+                                span: start_stage.merge(entry_end),
+                            });
+                        }
+                        let end_stage = self.previous_span();
+                        stages.push(PipelineStage {
+                            name: stage_name,
+                            entries,
+                            span: start_stage.merge(end_stage),
+                        });
+                    }
+                }
+                TokenKind::KwSchedule => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    if self.check(TokenKind::StringLiteral) {
+                        let tok = self.advance();
+                        schedule = Some(tok.text[1..tok.text.len() - 1].to_string());
+                    }
+                }
+                TokenKind::KwTests => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    tests = self.parse_test_list();
+                }
+                TokenKind::Ident if self.peek_text() == "constraints" => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    constraints = self.parse_constraint_list();
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+
+        self.expect(TokenKind::BraceClose);
+        let end = self.previous_span();
+
+        Some(PipelineDecl {
+            name,
+            goal,
+            source,
+            stages,
+            sink,
+            constraints,
+            schedule,
+            tests,
+            span: start.merge(end),
+        })
+    }
+
+    fn parse_config_entries(&mut self) -> Vec<ConfigEntry> {
+        let mut entries = Vec::new();
+        while (self.check(TokenKind::Ident) || self.peek_kind().is_keyword())
+            && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon)
+            && !self.is_section_keyword(self.peek())
+            && !self.is_at_end()
+        {
+            let start = self.current_span();
+            let key = self.advance().text;
+            self.advance(); // consume ':'
+            let value = self.parse_expression();
+            let end = self.previous_span();
+            entries.push(ConfigEntry {
+                key,
+                value,
+                span: start.merge(end),
+            });
+        }
+        entries
+    }
+
+    fn parse_workflow_decl(&mut self) -> Option<WorkflowDecl> {
+        let start = self.current_span();
+        self.advance(); // consume 'workflow'
+
+        let name_tok = self.advance();
+        let name = name_tok.text.clone();
+
+        self.expect(TokenKind::BraceOpen);
+
+        let mut goal = None;
+        let mut states = Vec::new();
+        let mut transitions = Vec::new();
+        let mut constraints = Vec::new();
+        let mut tests = Vec::new();
+
+        while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+            match self.peek_kind() {
+                TokenKind::KwGoal => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    if self.check(TokenKind::StringLiteral) {
+                        let tok = self.advance();
+                        goal = Some(tok.text[1..tok.text.len() - 1].to_string());
+                    }
+                }
+                TokenKind::KwStates => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while (self.check(TokenKind::Ident) || self.peek_kind().is_keyword())
+                        && !self.is_section_keyword(self.peek())
+                        && !self.is_at_end()
+                    {
+                        states.push(self.advance().text);
+                    }
+                }
+                TokenKind::KwTransitions => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while (self.check(TokenKind::Ident) || self.check(TokenKind::Star))
+                        && !self.is_section_keyword(self.peek())
+                        && !self.is_at_end()
+                    {
+                        let start_trans = self.current_span();
+                        let from = self.advance().text;
+                        self.expect(TokenKind::Arrow);
+                        let to = self.advance().text;
+                        self.expect(TokenKind::Colon);
+
+                        let mut trigger = None;
+                        let mut timeout = None;
+                        let mut guard = None;
+                        let mut actions = Vec::new();
+
+                        while (self.check(TokenKind::Ident) || self.peek_kind().is_keyword())
+                            && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon)
+                            && !self.is_section_keyword(self.peek())
+                        {
+                            let key = self.advance().text;
+                            self.advance(); // consume ':'
+
+                            if key == "trigger" {
+                                trigger = Some(self.advance().text);
+                            } else if key == "timeout" {
+                                let duration = self.parse_expression();
+                                self.expect(TokenKind::Arrow);
+                                let target_state = self.advance().text;
+                                timeout = Some(WorkflowTimeout {
+                                    duration,
+                                    target_state,
+                                    span: start_trans.merge(self.previous_span()),
+                                });
+                            } else if key == "guard" {
+                                guard = Some(self.parse_expression());
+                            } else if key == "action" {
+                                while self.check(TokenKind::Ident) {
+                                    actions.push(self.advance().text);
+                                    if self.check(TokenKind::Comma) {
+                                        self.advance();
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            } else {
+                                self.parse_expression();
+                            }
+                        }
+                        let end_trans = self.previous_span();
+                        transitions.push(WorkflowTransition {
+                            from,
+                            to,
+                            trigger,
+                            timeout,
+                            guard,
+                            actions,
+                            span: start_trans.merge(end_trans),
+                        });
+                    }
+                }
+                TokenKind::KwTests => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    tests = self.parse_test_list();
+                }
+                TokenKind::Ident if self.peek_text() == "constraints" => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    constraints = self.parse_constraint_list();
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+
+        self.expect(TokenKind::BraceClose);
+        let end = self.previous_span();
+
+        Some(WorkflowDecl {
+            name,
+            goal,
+            states,
+            transitions,
+            constraints,
+            tests,
+            span: start.merge(end),
+        })
+    }
+
+    fn parse_agent_decl(&mut self) -> Option<AgentDecl> {
+        let start = self.current_span();
+        self.advance(); // consume 'agent'
+
+        let name_tok = self.advance();
+        let name = name_tok.text.clone();
+
+        self.expect(TokenKind::BraceOpen);
+
+        let mut goal = None;
+        let mut capabilities = Vec::new();
+        let mut boundaries = Vec::new();
+        let mut tools = Vec::new();
+        let mut model = Vec::new();
+        let mut budget = None;
+        let mut tests = Vec::new();
+
+        while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+            match self.peek_kind() {
+                TokenKind::KwGoal => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    if self.check(TokenKind::StringLiteral) {
+                        let tok = self.advance();
+                        goal = Some(tok.text[1..tok.text.len() - 1].to_string());
+                    }
+                }
+                TokenKind::KwCapabilities => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while self.check(TokenKind::Minus) {
+                        self.advance(); // consume '-'
+                        capabilities.push(self.advance().text);
+                    }
+                }
+                TokenKind::KwBoundaries => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while self.check(TokenKind::Minus) {
+                        self.advance(); // consume '-'
+                        let start_bound = self.current_span();
+                        let kind = if self.check(TokenKind::KwMust) {
+                            self.advance();
+                            BoundaryKind::Must
+                        } else if self.check(TokenKind::KwCannot) {
+                            self.advance();
+                            BoundaryKind::Cannot
+                        } else {
+                            BoundaryKind::Must
+                        };
+                        self.expect(TokenKind::Colon);
+                        let expr = self.parse_expression();
+                        let end_bound = self.previous_span();
+                        boundaries.push(AgentBoundary {
+                            kind,
+                            expr,
+                            span: start_bound.merge(end_bound),
+                        });
+                    }
+                }
+                TokenKind::KwTools => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while self.check(TokenKind::Minus) {
+                        self.advance(); // consume '-'
+                        let start_tool = self.current_span();
+                        let tool_name = self.advance().text;
+                        self.expect(TokenKind::ParenOpen);
+
+                        let mut inputs = Vec::new();
+                        let mut outputs = Vec::new();
+
+                        while !self.check(TokenKind::ParenClose) && !self.is_at_end() {
+                            let field_start = self.current_span();
+                            let param_name = self.advance().text;
+                            self.expect(TokenKind::Colon);
+                            let ty = self.parse_type_ref();
+                            let field_end = self.previous_span();
+                            let field = Field {
+                                name: param_name.clone(),
+                                ty,
+                                default: None,
+                                span: field_start.merge(field_end),
+                            };
+
+                            if param_name == "input" {
+                                inputs.push(field);
+                            } else if param_name == "output" {
+                                outputs.push(field);
+                            } else {
+                                inputs.push(field);
+                            }
+
+                            if self.check(TokenKind::Comma) {
+                                self.advance();
+                            }
+                        }
+                        self.expect(TokenKind::ParenClose);
+                        let end_tool = self.previous_span();
+                        tools.push(AgentTool {
+                            name: tool_name,
+                            inputs,
+                            outputs,
+                            span: start_tool.merge(end_tool),
+                        });
+                    }
+                }
+                TokenKind::KwModel => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    model = self.parse_config_entries();
+                }
+                TokenKind::KwBudget => {
+                    self.advance();
+                    budget = Some(self.parse_budget_block());
+                }
+                TokenKind::KwTests => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    tests = self.parse_test_list();
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+
+        self.expect(TokenKind::BraceClose);
+        let end = self.previous_span();
+
+        Some(AgentDecl {
+            name,
+            goal,
+            capabilities,
+            boundaries,
+            tools,
+            model,
+            budget,
+            tests,
+            span: start.merge(end),
+        })
+    }
+
+    fn parse_schema_decl(&mut self) -> Option<SchemaDecl> {
+        let start = self.current_span();
+        self.advance(); // consume 'schema'
+
+        let name_tok = self.advance();
+        let name = name_tok.text.clone();
+
+        self.expect(TokenKind::BraceOpen);
+
+        let mut goal = None;
+        let mut target = None;
+        let mut entities = Vec::new();
+        let mut relations = Vec::new();
+        let mut indexes = Vec::new();
+        let mut constraints = Vec::new();
+
+        while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+            match self.peek_kind() {
+                TokenKind::KwGoal => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    if self.check(TokenKind::StringLiteral) {
+                        let tok = self.advance();
+                        goal = Some(tok.text[1..tok.text.len() - 1].to_string());
+                    }
+                }
+                TokenKind::KwTarget => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    target = Some(self.advance().text);
+                }
+                TokenKind::KwEntity => {
+                    self.advance(); // consume 'entity'
+                    let start_entity = self.current_span();
+                    let entity_name = self.advance().text;
+                    self.expect(TokenKind::BraceOpen);
+
+                    let mut fields = Vec::new();
+                    while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+                        let field_start = self.current_span();
+                        let field_name = self.advance().text;
+                        self.expect(TokenKind::Colon);
+                        let ty = self.parse_type_ref();
+
+                        let default = if self.check(TokenKind::Eq) {
+                            self.advance();
+                            Some(self.parse_expression())
+                        } else {
+                            None
+                        };
+
+                        let mut decorators = Vec::new();
+                        while self.check(TokenKind::At) {
+                            self.advance(); // consume '@'
+                            let dec_start = self.current_span();
+                            let dec_name = self.advance().text;
+                            let mut args = Vec::new();
+                            if self.check(TokenKind::ParenOpen) {
+                                self.advance(); // consume '('
+                                while !self.check(TokenKind::ParenClose) && !self.is_at_end() {
+                                    args.push(self.parse_expression());
+                                    if self.check(TokenKind::Comma) {
+                                        self.advance();
+                                    }
+                                }
+                                self.expect(TokenKind::ParenClose);
+                            }
+                            let dec_end = self.previous_span();
+                            decorators.push(Decorator {
+                                name: dec_name,
+                                args,
+                                span: dec_start.merge(dec_end),
+                            });
+                        }
+
+                        let field_end = self.previous_span();
+                        fields.push(EntityField {
+                            name: field_name,
+                            ty,
+                            default,
+                            decorators,
+                            span: field_start.merge(field_end),
+                        });
+                    }
+                    self.expect(TokenKind::BraceClose);
+                    let end_entity = self.previous_span();
+                    entities.push(EntityDecl {
+                        name: entity_name,
+                        fields,
+                        span: start_entity.merge(end_entity),
+                    });
+                }
+                TokenKind::KwRelations => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while self.check(TokenKind::Minus) {
+                        self.advance(); // consume '-'
+                        let start_rel = self.current_span();
+                        let lhs = self.advance().text;
+                        let rel_type = self.advance().text;
+                        let rhs = self.advance().text;
+                        let mut args = Vec::new();
+                        if self.check(TokenKind::ParenOpen) {
+                            self.advance();
+                            args = self.parse_config_entries();
+                            self.expect(TokenKind::ParenClose);
+                        }
+                        let end_rel = self.previous_span();
+                        relations.push(RelationDecl {
+                            lhs,
+                            rel_type,
+                            rhs,
+                            args,
+                            span: start_rel.merge(end_rel),
+                        });
+                    }
+                }
+                TokenKind::KwIndexes => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while self.check(TokenKind::Minus) {
+                        self.advance(); // consume '-'
+                        let start_idx = self.current_span();
+                        let entity = self.advance().text;
+                        self.expect(TokenKind::ParenOpen);
+                        let mut fields = Vec::new();
+                        while !self.check(TokenKind::ParenClose) && !self.is_at_end() {
+                            fields.push(self.advance().text);
+                            if self.check(TokenKind::Comma) {
+                                self.advance();
+                            }
+                        }
+                        self.expect(TokenKind::ParenClose);
+                        let mut r#where = None;
+                        if self.check(TokenKind::KwIf)
+                            || (self.check(TokenKind::Ident) && self.peek_text() == "where")
+                        {
+                            self.advance();
+                            r#where = Some(self.parse_expression());
+                        }
+                        let end_idx = self.previous_span();
+                        indexes.push(IndexDecl {
+                            entity,
+                            fields,
+                            r#where,
+                            span: start_idx.merge(end_idx),
+                        });
+                    }
+                }
+                TokenKind::Ident if self.peek_text() == "constraints" => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    constraints = self.parse_constraint_list();
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+
+        self.expect(TokenKind::BraceClose);
+        let end = self.previous_span();
+
+        Some(SchemaDecl {
+            name,
+            goal,
+            target,
+            entities,
+            relations,
+            indexes,
+            constraints,
+            span: start.merge(end),
+        })
+    }
+
+    fn parse_policy_decl(&mut self) -> Option<PolicyDecl> {
+        let start = self.current_span();
+        self.advance(); // consume 'policy'
+
+        let name_tok = self.advance();
+        let name = name_tok.text.clone();
+
+        self.expect(TokenKind::BraceOpen);
+
+        let mut description = None;
+        let mut scope = None;
+        let mut rules = Vec::new();
+
+        while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+            match self.peek_kind() {
+                TokenKind::KwDescription => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    if self.check(TokenKind::StringLiteral) {
+                        let tok = self.advance();
+                        description = Some(tok.text[1..tok.text.len() - 1].to_string());
+                    }
+                }
+                TokenKind::KwScope => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    scope = Some(self.advance().text);
+                }
+                TokenKind::KwRules => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while self.is_bullet_point() {
+                        self.advance(); // consume '-'
+                        let start_rule = self.current_span();
+
+                        let mut condition = String::new();
+                        let mut last_end = 0;
+                        while !self.check(TokenKind::Colon) && !self.is_at_end() {
+                            let tok = self.advance();
+                            if last_end > 0 && tok.span.start > last_end {
+                                condition.push(' ');
+                            }
+                            condition.push_str(&tok.text);
+                            last_end = tok.span.end;
+                        }
+                        self.expect(TokenKind::Colon);
+                        condition = condition.trim().to_string();
+
+                        let mut clauses = Vec::new();
+                        while self.is_bullet_point() {
+                            self.advance(); // consume '-'
+                            let start_clause = self.current_span();
+                            if (self.check(TokenKind::Ident) || self.peek_kind().is_keyword())
+                                && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon)
+                            {
+                                let verb = self.advance().text;
+                                self.advance(); // consume ':'
+                                let val = self.parse_expression();
+                                let end_clause = self.previous_span();
+                                clauses.push(PolicyClause::Action {
+                                    verb,
+                                    value: val,
+                                    span: start_clause.merge(end_clause),
+                                });
+                            } else {
+                                let mut clause_str = String::new();
+                                let mut last_end = 0;
+                                while !self.is_bullet_point()
+                                    && !self.check(TokenKind::BraceClose)
+                                    && !self.is_section_keyword(self.peek())
+                                    && !self.is_at_end()
+                                {
+                                    let tok = self.advance();
+                                    if last_end > 0 && tok.span.start > last_end {
+                                        clause_str.push(' ');
+                                    }
+                                    clause_str.push_str(&tok.text);
+                                    last_end = tok.span.end;
+                                }
+                                let end_clause = self.previous_span();
+                                clauses.push(PolicyClause::Simple(
+                                    clause_str.trim().to_string(),
+                                    start_clause.merge(end_clause),
+                                ));
+                            }
+                        }
+                        let end_rule = self.previous_span();
+                        rules.push(PolicyRule {
+                            condition,
+                            clauses,
+                            span: start_rule.merge(end_rule),
+                        });
+                    }
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+
+        self.expect(TokenKind::BraceClose);
+        let end = self.previous_span();
+
+        Some(PolicyDecl {
+            name,
+            description,
+            scope,
+            rules,
+            span: start.merge(end),
+        })
+    }
+
+    fn parse_constraint_decl(&mut self) -> Option<ConstraintDecl> {
+        let start = self.current_span();
+        self.advance(); // consume 'constraint'
+
+        let name_tok = self.advance();
+        let name = name_tok.text.clone();
+
+        self.expect(TokenKind::BraceOpen);
+
+        let mut requires = Vec::new();
+        let mut verification = Vec::new();
+
+        while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+            match self.peek_kind() {
+                TokenKind::Ident if self.peek_text() == "requires" => {
+                    self.advance(); // consume "requires"
+                    self.expect(TokenKind::Colon);
+                    requires = self.parse_constraint_list();
+                }
+                TokenKind::Ident if self.peek_text() == "verification" => {
+                    self.advance(); // consume "verification"
+                    self.expect(TokenKind::Colon);
+                    while self.is_bullet_point() {
+                        self.advance(); // consume '-'
+                        let vstart = self.current_span();
+
+                        let mut tool = String::new();
+                        let mut evidence = String::new();
+
+                        while (self.check(TokenKind::Ident) || self.peek_kind().is_keyword())
+                            && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon)
+                        {
+                            let key = self.advance().text;
+                            self.advance(); // consume ':'
+                            let val_expr = self.parse_expression();
+                            let val_str = match val_expr {
+                                Expression::Identifier(s, _) => s,
+                                Expression::Literal(Literal::String(s)) => s,
+                                _ => "unknown".to_string(),
+                            };
+                            if key == "tool" {
+                                tool = val_str;
+                            } else if key == "evidence" {
+                                evidence = val_str;
+                            }
+                        }
+
+                        let vend = self.previous_span();
+                        verification.push(VerificationEntry {
+                            tool,
+                            evidence,
+                            span: vstart.merge(vend),
+                        });
+                    }
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+
+        self.expect(TokenKind::BraceClose);
+        let end = self.previous_span();
+
+        Some(ConstraintDecl {
+            name,
+            requires,
+            verification,
+            span: start.merge(end),
+        })
     }
 
     fn synchronize(&mut self) {
@@ -1355,7 +2505,8 @@ impl Parser {
                 | TokenKind::KwWorkflow
                 | TokenKind::KwAgent
                 | TokenKind::KwSchema
-                | TokenKind::KwPolicy => return,
+                | TokenKind::KwPolicy
+                | TokenKind::KwConstraint => return,
                 _ => {
                     self.advance();
                 }
@@ -1614,6 +2765,368 @@ service Checkout {
             assert!(s.metrics[1].labels.is_empty());
             assert!(s.metrics[1].buckets.is_some());
             assert_eq!(s.metrics[1].buckets.as_ref().unwrap().len(), 5);
+        }
+    }
+
+    #[test]
+    fn parse_component_decl_test() {
+        let file = parse_ok(
+            r#"module test
+component ProductCard {
+  goal: "Display a product card"
+  props:
+    product: Product
+    currency: CurrencyCode = USD
+  state:
+    quantity: Int = 1
+  events:
+    - add_to_cart(product_id: ProductId, quantity: Quantity)
+  style_guide: "styleguide_v1"
+  visual_spec:
+    - @golden/product_card_desktop.png --viewport 1440x900
+}"#,
+        );
+        assert_eq!(file.declarations.len(), 1);
+        if let Declaration::Component(c) = &file.declarations[0] {
+            assert_eq!(c.name, "ProductCard");
+            assert_eq!(c.goal, Some("Display a product card".to_string()));
+            assert_eq!(c.props.len(), 2);
+            assert_eq!(c.state.len(), 1);
+            assert_eq!(c.events.len(), 1);
+            assert_eq!(c.events[0].name, "add_to_cart");
+            assert_eq!(c.style_guide, Some("styleguide_v1".to_string()));
+            assert_eq!(c.visual_spec.len(), 1);
+        } else {
+            panic!("expected component declaration");
+        }
+    }
+
+    #[test]
+    fn parse_pipeline_decl_test() {
+        let file = parse_ok(
+            r#"module test
+pipeline DailyRevenueReport {
+  goal: "Aggregate daily revenue"
+  source:
+    type: PostgreSQL
+    table: orders
+  stages:
+    - name: "Filter completed orders"
+      filter: status == Completed
+  sink:
+    type: S3
+    path: "s3://reports"
+  schedule: "0 6 * * *"
+}"#,
+        );
+        assert_eq!(file.declarations.len(), 1);
+        if let Declaration::Pipeline(p) = &file.declarations[0] {
+            assert_eq!(p.name, "DailyRevenueReport");
+            assert_eq!(p.goal, Some("Aggregate daily revenue".to_string()));
+            assert_eq!(p.source.len(), 2);
+            assert_eq!(p.stages.len(), 1);
+            assert_eq!(p.stages[0].name, "Filter completed orders");
+            assert_eq!(p.sink.len(), 2);
+            assert_eq!(p.schedule, Some("0 6 * * *".to_string()));
+        } else {
+            panic!("expected pipeline declaration");
+        }
+    }
+
+    #[test]
+    fn parse_workflow_decl_test() {
+        let file = parse_ok(
+            r#"module test
+workflow OrderFulfillment {
+  goal: "Manage order lifecycle"
+  states:
+    Placed
+    PaymentPending
+  transitions:
+    Placed -> PaymentPending:
+      trigger: order_placed
+      action: initiate_payment
+}"#,
+        );
+        assert_eq!(file.declarations.len(), 1);
+        if let Declaration::Workflow(w) = &file.declarations[0] {
+            assert_eq!(w.name, "OrderFulfillment");
+            assert_eq!(w.goal, Some("Manage order lifecycle".to_string()));
+            assert_eq!(w.states.len(), 2);
+            assert_eq!(w.transitions.len(), 1);
+            assert_eq!(w.transitions[0].from, "Placed");
+            assert_eq!(w.transitions[0].to, "PaymentPending");
+            assert_eq!(w.transitions[0].trigger, Some("order_placed".to_string()));
+        } else {
+            panic!("expected workflow declaration");
+        }
+    }
+
+    #[test]
+    fn parse_agent_decl_test() {
+        let file = parse_ok(
+            r#"module test
+agent CustomerSupportAgent {
+  goal: "Handle support inquiries"
+  capabilities:
+    - answer_faq
+  boundaries:
+    - cannot: modify_pricing
+  tools:
+    - OrderLookup(input: OrderId, output: OrderSummary)
+  model:
+    preference: Balanced
+}"#,
+        );
+        assert_eq!(file.declarations.len(), 1);
+        if let Declaration::Agent(a) = &file.declarations[0] {
+            assert_eq!(a.name, "CustomerSupportAgent");
+            assert_eq!(a.goal, Some("Handle support inquiries".to_string()));
+            assert_eq!(a.capabilities.len(), 1);
+            assert_eq!(a.boundaries.len(), 1);
+            assert_eq!(a.boundaries[0].kind, BoundaryKind::Cannot);
+            assert_eq!(a.tools.len(), 1);
+            assert_eq!(a.tools[0].name, "OrderLookup");
+            assert_eq!(a.model.len(), 1);
+        } else {
+            panic!("expected agent declaration");
+        }
+    }
+
+    #[test]
+    fn parse_schema_decl_test() {
+        let file = parse_ok(
+            r#"module test
+schema ECommerceDB {
+  goal: "E-commerce data model"
+  target: postgresql
+  entity Product {
+    id: ProductId @primary
+    name: String @indexed
+  }
+  relations:
+    - Customer has_many Orders
+  indexes:
+    - Order(customer, placed_at)
+}"#,
+        );
+        assert_eq!(file.declarations.len(), 1);
+        if let Declaration::Schema(s) = &file.declarations[0] {
+            assert_eq!(s.name, "ECommerceDB");
+            assert_eq!(s.goal, Some("E-commerce data model".to_string()));
+            assert_eq!(s.target, Some("postgresql".to_string()));
+            assert_eq!(s.entities.len(), 1);
+            assert_eq!(s.entities[0].name, "Product");
+            assert_eq!(s.entities[0].fields.len(), 2);
+            assert_eq!(s.entities[0].fields[0].decorators.len(), 1);
+            assert_eq!(s.entities[0].fields[0].decorators[0].name, "primary");
+            assert_eq!(s.relations.len(), 1);
+            assert_eq!(s.relations[0].lhs, "Customer");
+            assert_eq!(s.relations[0].rel_type, "has_many");
+            assert_eq!(s.relations[0].rhs, "Orders");
+            assert_eq!(s.indexes.len(), 1);
+            assert_eq!(s.indexes[0].entity, "Order");
+            assert_eq!(s.indexes[0].fields.len(), 2);
+        } else {
+            panic!("expected schema declaration");
+        }
+    }
+
+    #[test]
+    fn parse_policy_decl_test() {
+        let file = parse_ok(
+            r#"module test
+policy SecurityBaseline {
+  description: "Minimum security requirements"
+  scope: global
+  rules:
+    - all services must:
+        - use TLS 1.3+
+        - apply: PCI_DSS_v4
+}"#,
+        );
+        assert_eq!(file.declarations.len(), 1);
+        if let Declaration::Policy(p) = &file.declarations[0] {
+            assert_eq!(p.name, "SecurityBaseline");
+            assert_eq!(
+                p.description,
+                Some("Minimum security requirements".to_string())
+            );
+            assert_eq!(p.scope, Some("global".to_string()));
+            assert_eq!(p.rules.len(), 1);
+            assert_eq!(p.rules[0].condition, "all services must");
+            assert_eq!(p.rules[0].clauses.len(), 2);
+            if let PolicyClause::Simple(text, _) = &p.rules[0].clauses[0] {
+                assert_eq!(text, "use TLS 1.3+");
+            } else {
+                panic!("expected simple clause");
+            }
+            if let PolicyClause::Action { verb, .. } = &p.rules[0].clauses[1] {
+                assert_eq!(verb, "apply");
+            } else {
+                panic!("expected action clause");
+            }
+        } else {
+            panic!("expected policy declaration");
+        }
+    }
+
+    #[test]
+    fn parse_union_intersection_option_test() {
+        let file = parse_ok(
+            r#"module test
+type Val = Int | Float & String
+type Opt = String?
+"#,
+        );
+        assert_eq!(file.declarations.len(), 2);
+        if let Declaration::Type(t) = &file.declarations[0] {
+            assert_eq!(t.name, "Val");
+            if let TypeKind::Alias(ref ty) = t.kind {
+                assert_eq!(ty.name, "Union");
+                assert_eq!(ty.union_members.len(), 2);
+                assert_eq!(ty.union_members[0].name, "Int");
+                assert_eq!(ty.union_members[1].name, "Intersection");
+                assert_eq!(ty.union_members[1].intersection_members.len(), 2);
+                assert_eq!(ty.union_members[1].intersection_members[0].name, "Float");
+                assert_eq!(ty.union_members[1].intersection_members[1].name, "String");
+            } else {
+                panic!("expected alias");
+            }
+        }
+        if let Declaration::Type(t) = &file.declarations[1] {
+            assert_eq!(t.name, "Opt");
+            if let TypeKind::Alias(ref ty) = t.kind {
+                assert_eq!(ty.name, "Option");
+                assert_eq!(ty.type_args.len(), 1);
+                assert_eq!(ty.type_args[0].name, "String");
+            } else {
+                panic!("expected alias");
+            }
+        }
+    }
+
+    #[test]
+    fn parse_generics_bounds_test() {
+        let file = parse_ok(
+            r#"module test
+type Res<T: S + C, E> = UUID
+"#,
+        );
+        assert_eq!(file.declarations.len(), 1);
+        if let Declaration::Type(t) = &file.declarations[0] {
+            assert_eq!(t.name, "Res");
+            assert_eq!(t.type_params.len(), 2);
+            assert_eq!(t.type_params[0].name, "T");
+            assert_eq!(t.type_params[0].bounds.len(), 2);
+            assert_eq!(t.type_params[0].bounds[0].name, "S");
+            assert_eq!(t.type_params[0].bounds[1].name, "C");
+            assert_eq!(t.type_params[1].name, "E");
+            assert!(t.type_params[1].bounds.is_empty());
+        }
+    }
+
+    #[test]
+    fn parse_refined_types_test() {
+        let file = parse_ok(
+            r#"module test
+type Ref1 = String { min_length: 5 }
+type Ref2 = { format: "regex" }
+"#,
+        );
+        assert_eq!(file.declarations.len(), 2);
+        if let Declaration::Type(t1) = &file.declarations[0] {
+            assert_eq!(t1.name, "Ref1");
+            if let TypeKind::Refined(ref r) = t1.kind {
+                assert!(r.base.is_some());
+                assert_eq!(r.base.as_ref().unwrap().name, "String");
+                assert_eq!(r.constraints.len(), 1);
+                assert_eq!(r.constraints[0].name, "min_length");
+            } else {
+                panic!("expected refined type");
+            }
+        }
+        if let Declaration::Type(t2) = &file.declarations[1] {
+            assert_eq!(t2.name, "Ref2");
+            if let TypeKind::Refined(ref r) = t2.kind {
+                assert!(r.base.is_none());
+                assert_eq!(r.constraints.len(), 1);
+                assert_eq!(r.constraints[0].name, "format");
+            } else {
+                panic!("expected refined type");
+            }
+        }
+    }
+
+    #[test]
+    fn parse_constraint_decl_test() {
+        let file = parse_ok(
+            r#"module test
+constraint PCI_compliant {
+  requires:
+    - authenticated
+    - audit_logging
+  verification:
+    - tool: SonarQube evidence: "sonar-report.json"
+}"#,
+        );
+        assert_eq!(file.declarations.len(), 1);
+        if let Declaration::Constraint(c) = &file.declarations[0] {
+            assert_eq!(c.name, "PCI_compliant");
+            assert_eq!(c.requires.len(), 2);
+            assert_eq!(c.requires[0].name, "authenticated");
+            assert_eq!(c.requires[1].name, "audit_logging");
+            assert_eq!(c.verification.len(), 1);
+            assert_eq!(c.verification[0].tool, "SonarQube");
+            assert_eq!(c.verification[0].evidence, "sonar-report.json");
+        } else {
+            panic!("expected constraint declaration");
+        }
+    }
+
+    #[test]
+    fn parse_invariants_and_quantifiers_test() {
+        let file = parse_ok(
+            r#"module test
+service Bank {
+  goal: "Manage customer balance"
+  invariants:
+    - balance >= 0
+    - total_deposits >= total_withdrawals
+  rpc Withdraw {
+    inputs:
+      amount: Int
+    outputs:
+      new_balance: Int
+    tests:
+      - property: "Withdraw reduction"
+        forall: p in arbitrary<ProductId>, q <- Int(1, 100)
+        given: balance >= q
+        assert: balance == old(balance) - q
+  }
+}"#,
+        );
+        assert_eq!(file.declarations.len(), 1);
+        if let Declaration::Service(s) = &file.declarations[0] {
+            assert_eq!(s.name, "Bank");
+            println!("INVARIANTS: {:#?}", s.invariants);
+            assert_eq!(s.invariants.len(), 2);
+            assert_eq!(s.rpcs.len(), 1);
+            let rpc = &s.rpcs[0];
+            assert_eq!(rpc.tests.len(), 1);
+            if let TestKind::Property {
+                name, quantifiers, ..
+            } = &rpc.tests[0].kind
+            {
+                assert_eq!(name, "Withdraw reduction");
+                assert_eq!(quantifiers.len(), 2);
+                assert_eq!(quantifiers[0].name, "p");
+                assert_eq!(quantifiers[1].name, "q");
+            } else {
+                panic!("expected property test");
+            }
+        } else {
+            panic!("expected service declaration");
         }
     }
 }

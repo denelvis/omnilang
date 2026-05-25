@@ -89,6 +89,25 @@ pub enum TokenKind {
     KwRules,
     KwSchedule,
 
+    // Schema internals
+    KwEntity,
+    KwRelations,
+    KwIndexes,
+
+    // Agent boundaries
+    KwCannot,
+    KwMust,
+
+    // Other section keywords
+    KwStyleGuide,
+    KwVisualSpec,
+    KwDescription,
+    KwScope,
+    KwCapabilities,
+    KwBoundaries,
+    KwTools,
+    KwModel,
+
     // Test keywords
     KwTests,
     KwScenario,
@@ -276,6 +295,23 @@ impl TokenKind {
             "rules" => Some(TokenKind::KwRules),
             "schedule" => Some(TokenKind::KwSchedule),
 
+            // Schema & Agent boundary internals
+            "entity" => Some(TokenKind::KwEntity),
+            "relations" => Some(TokenKind::KwRelations),
+            "indexes" => Some(TokenKind::KwIndexes),
+            "cannot" => Some(TokenKind::KwCannot),
+            "must" => Some(TokenKind::KwMust),
+
+            // Other section keywords
+            "style_guide" => Some(TokenKind::KwStyleGuide),
+            "visual_spec" => Some(TokenKind::KwVisualSpec),
+            "description" => Some(TokenKind::KwDescription),
+            "scope" => Some(TokenKind::KwScope),
+            "capabilities" => Some(TokenKind::KwCapabilities),
+            "boundaries" => Some(TokenKind::KwBoundaries),
+            "tools" => Some(TokenKind::KwTools),
+            "model" => Some(TokenKind::KwModel),
+
             // Test keywords
             "tests" => Some(TokenKind::KwTests),
             "scenario" => Some(TokenKind::KwScenario),
@@ -367,6 +403,19 @@ impl TokenKind {
                 | TokenKind::KwTriggers
                 | TokenKind::KwRules
                 | TokenKind::KwSchedule
+                | TokenKind::KwEntity
+                | TokenKind::KwRelations
+                | TokenKind::KwIndexes
+                | TokenKind::KwCannot
+                | TokenKind::KwMust
+                | TokenKind::KwStyleGuide
+                | TokenKind::KwVisualSpec
+                | TokenKind::KwDescription
+                | TokenKind::KwScope
+                | TokenKind::KwCapabilities
+                | TokenKind::KwBoundaries
+                | TokenKind::KwTools
+                | TokenKind::KwModel
                 | TokenKind::KwTests
                 | TokenKind::KwScenario
                 | TokenKind::KwProperty
