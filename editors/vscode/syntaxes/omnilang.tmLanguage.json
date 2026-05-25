@@ -1,0 +1,96 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "OmniLang",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#types"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.omni",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.omni",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.omni",
+          "match": "\\b(module|use|type|struct|enum|service|component|pipeline|workflow|agent|schema|policy|rpc|goal|constraints|metrics|counter|gauge|histogram|inputs|outputs|preconditions|postconditions|errors|tests|scenario|property|forall|given|when|expect|expect_error|assert|in|as)\\b"
+        },
+        {
+          "name": "constant.language.boolean.omni",
+          "match": "\\b(true|false|null)\\b"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.omni",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.omni",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.duration.omni",
+          "match": "\\b\\d+(ms|s|m|h|d|w|y|min)\\b"
+        },
+        {
+          "name": "constant.numeric.money.omni",
+          "match": "\\$\\d+(\\.\\d{2})?"
+        },
+        {
+          "name": "constant.numeric.percentage.omni",
+          "match": "\\b\\d+%\\b"
+        },
+        {
+          "name": "constant.numeric.float.omni",
+          "match": "\\b\\d+\\.\\d+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.omni",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "entity.name.type.omni",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    }
+  ],
+  "scopeName": "source.omni"
+}

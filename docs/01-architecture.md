@@ -398,6 +398,79 @@ The key insight: **the probabilistic phase (AI generation) is always sandwiched 
 
 ---
 
+## Code Storage Architecture: Three-Tier Storage Model
+
+The question of where and how to store generated code brings us to a fundamental realization: **AI-generated code is no longer just static text in a file** as it was when written by humans. Instead, it is a dynamic, version-controlled, and highly contextual artifact.
+
+To manage this, OmniLang organizes the storage of specifications and generated code across three distinct tiers based on its lifecycle and purpose:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Three-Tier Storage Model                 │
+├─────────────────────────────────────────────────────────────┤
+│ 1. Git Repository (Single Source of Truth)                 │
+│    - Human-readable specifications (.omni)                  │
+│    - Production-ready generated source code (Rust/Go/TS)    │
+│    - Full audit trail, diffs, and version tracking          │
+├─────────────────────────────────────────────────────────────┤
+│ 2. Runtime Artifact Registry (Bazel-style Cache)            │
+│    - Content-addressable cache (.omni/cache/)               │
+│    - Fast lookup via BLAKE3 block hashes                    │
+│    - Prevents redundant LLM calls and speeds up compilation  │
+├─────────────────────────────────────────────────────────────┤
+│ 3. Agentic Memory (Vector DB & Knowledge Graph)             │
+│    - Local agentic memory (.omni/memory/)                   │
+│    - Reasoning traces (failures, fixes, design decisions)   │
+│    - Prevents hallucinations by reusing developer experience  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 1. Permanent Storage (Single Source of Truth): Traditional Git
+
+Even though the code is written by AI agents, in production it lives exactly where human-written code does: in standard Git repositories (GitHub, GitLab, or local Git servers).
+
+* **Transparency for the Team**: Git serves as the universal interface shared by humans and AI agents. When an agent finishes compiling `.omni` specs into code (e.g., Rust, Go, or TypeScript), it automatically creates a `git commit` and performs a `git push`.
+* **Automatic Versioning**: Each change in the OmniLang specification corresponds to a strict Git commit containing the matching generated code. If something goes wrong in production, developers or the orchestrator agent can immediately run `git checkout` to return the system to a previous stable state.
+
+### 2. Runtime Cache (The Artifact Registry): Build Acceleration
+
+Generating code from scratch, running it in isolated microVMs, and iteratively fixing errors is a heavy, probabilistic process that takes time (seconds to minutes) and incurs API costs (tokens). Re-running this flow on every build when specifications haven't changed would be highly inefficient.
+
+To prevent this, `OmniRuntime` implements a **Content-Addressable Storage (CAS)** system similar to modern build tools like Bazel or Turborepo:
+
+1. Every semantic block in an OmniLang spec (e.g., a specific RPC method in `service Checkout`) is assigned a unique BLAKE3 hash. This hash depends on the intent text, typings, contracts, and the specific version of the AI model.
+2. Compiled artifacts (source code, tests, binary builds) are stored in a local or cloud cache indexed by this hash.
+3. During a build, the compiler computes the hash of each block. If the hash matches an entry in the cache, the runtime immediately retrieves the pre-verified code without making any calls to the LLM.
+
+### 3. Agentic Knowledge Base (Vector DB & Graph Memory)
+
+This is a fundamentally new storage layer designed specifically for AI-driven development. For agents to improve as the project evolves, they need to "remember" how they wrote the code, what errors they encountered, and why they chose a particular architecture.
+
+An agentic knowledge base (powered by vector databases or knowledge graphs) runs side-by-side with the Git repository:
+
+* **Reasoning Traces**: Stores the logs of the agent's decision-making process. For example: *"In version 1.2, I tried using library X, but the `PCI_safe` constraint check failed due to header logging. I refactored the code using library Y."*
+* **Contextual Search**: When a developer adds new requirements or modifies a spec in the future, the agent first queries its local memory to see how it resolved similar problems in the past. This enables the agent to reuse project-specific experience and drastically reduces LLM hallucinations.
+
+---
+
+### Physical Project Directory Structure
+
+A typical OmniLang project folder is laid out as follows:
+
+```text
+my-awesome-app/
+├── schema.omni            # Human-authored specifications, goals, and contracts
+├── .omni/                 # Hidden runtime directory (analogous to .git or .next)
+│   ├── cache/             # Content-addressable AST trees and generated caches
+│   └── memory/            # Local vector/graph database of the agent's experience
+└── generated/             # Target production-ready files generated by the agents
+    ├── src/               # Clean, verified source code (Rust, Go, TypeScript, etc.)
+    ├── tests/             # Generated unit, integration, and property-based tests
+    └── Dockerfile         # Infrastructure manifests for automated deployment
+```
+
+---
+
 ## Design Decisions
 
 ### Why Not Embed in an Existing Language?

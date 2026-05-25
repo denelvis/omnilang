@@ -1,0 +1,18 @@
+[package]
+name = "omni-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CLI for OmniLang — the specification language for AI-native development"
+
+[[bin]]
+name = "omni"
+path = "src/main.rs"
+
+[dependencies]
+omni-parser = { path = "../omni-parser" }
+omni-analyzer = { path = "../omni-analyzer" }
+clap = { version = "4", features = ["derive"] }
+colored = "3"
+serde_json = { workspace = true }

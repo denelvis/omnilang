@@ -1,0 +1,81 @@
+module acme.checkout
+
+type OrderId = UUID
+
+type OrderStatus = enum {
+  Draft
+  Pending
+  Confirmed
+  Shipped
+  Delivered
+  Cancelled
+}
+
+type OrderItem = struct {
+  product_id: String
+  quantity: Int
+  unit_price: Decimal
+}
+
+type Order = struct {
+  id: OrderId
+  customer_id: String
+  items: List
+  status: OrderStatus
+  total: Decimal
+  created_at: DateTime
+}
+
+service Checkout {
+  goal: "Process customer orders with payment validation"
+
+  constraints:
+    - idempotent
+    - latency(p95: 200ms)
+
+  metrics:
+    - counter payment_attempts_total {
+        description: "Total payment attempts"
+        labels: [payment_method, status]
+      }
+
+  rpc PlaceOrder {
+    inputs:
+      customer_id: String
+      items: List
+      payment_method: String
+
+    outputs:
+      order_id: OrderId
+      status: OrderStatus
+
+    postconditions:
+      - status == Confirmed
+
+    tests:
+      - scenario: "Successful order"
+        given: valid_customer()
+        expect: status == Confirmed
+
+      - scenario: "Empty cart"
+        expect_error: EmptyCart
+
+    errors:
+      - EmptyCart
+      - InsufficientStock
+      - PaymentFailed
+  }
+
+  rpc CancelOrder {
+    inputs:
+      order_id: OrderId
+    outputs:
+      status: OrderStatus
+
+    preconditions:
+      - status != Cancelled
+
+    postconditions:
+      - status == Cancelled
+  }
+}

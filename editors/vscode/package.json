@@ -1,0 +1,35 @@
+{
+  "name": "omnilang-vscode",
+  "displayName": "OmniLang Support",
+  "description": "VS Code Support for OmniLang — the specification language for AI-native development",
+  "version": "0.1.0",
+  "publisher": "omnilang",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "omnilang",
+        "aliases": [
+          "OmniLang",
+          "omnilang"
+        ],
+        "extensions": [
+          ".omni"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "omnilang",
+        "scopeName": "source.omni",
+        "path": "./syntaxes/omnilang.tmLanguage.json"
+      }
+    ]
+  }
+}

@@ -1,0 +1,126 @@
+==================
+Basic Module and Service
+==================
+
+module hello
+
+type GreetingId = UUID
+
+service GreetingService {
+  goal: "Provide friendly greetings"
+}
+
+---
+
+(source_file
+  (module_declaration
+    name: (dotted_name (identifier)))
+  (type_declaration
+    name: (identifier)
+    kind: (type_ref name: (identifier)))
+  (service_declaration
+    name: (identifier)
+    (service_block
+      (goal_section (string_literal)))))
+
+==================
+Complete RPC Service
+==================
+
+module hello
+
+service GreetingService {
+  rpc SayHello {
+    inputs:
+      name: String
+    outputs:
+      greeting: Greeting
+    preconditions:
+      - name != ""
+    postconditions:
+      - greeting.message != ""
+    tests:
+      - scenario: "Greet a user"
+        given: name == "World"
+        expect: greeting.message == "Hello, World!"
+  }
+}
+
+---
+
+(source_file
+  (module_declaration
+    name: (dotted_name (identifier)))
+  (service_declaration
+    name: (identifier)
+    (service_block
+      (rpc_declaration
+        name: (identifier)
+        (rpc_block
+          (inputs_section
+            (field
+              name: (identifier)
+              type: (type_ref name: (identifier))))
+          (outputs_section
+            (field
+              name: (identifier)
+              type: (type_ref name: (identifier))))
+          (preconditions_section
+            (expression
+              (binary_expression
+                (expression (identifier))
+                (expression (string_literal)))))
+          (postconditions_section
+            (expression
+              (binary_expression
+                (expression
+                  (field_expression
+                    (expression (identifier))
+                    (identifier)))
+                (expression (string_literal)))))
+          (tests_section
+            (scenario_block
+              name: (string_literal)
+              (expression
+                (binary_expression
+                  (expression (identifier))
+                  (expression (string_literal))))
+              (expression
+                (binary_expression
+                  (expression
+                    (field_expression
+                      (expression (identifier))
+                      (identifier)))
+                  (expression (string_literal)))))))))))
+
+==================
+Service with Metrics
+==================
+
+module hello
+
+service GreetingService {
+  metrics:
+    - counter greetings_total {
+        description: "Total greetings"
+        labels: [name]
+      }
+}
+
+---
+
+(source_file
+  (module_declaration
+    name: (dotted_name (identifier)))
+  (service_declaration
+    name: (identifier)
+    (service_block
+      (metrics_section
+        (metric_declaration
+          kind: (metric_kind)
+          name: (identifier)
+          (block
+            (identifier)
+            (expression (string_literal))
+            (identifier)
+            (expression (list_expression (expression (identifier))))))))))

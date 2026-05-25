@@ -180,6 +180,7 @@ service <Name> {
 
   // Optional sections (any order)
   constraints: [...]
+  metrics: [...]
   inputs: { ... }
   outputs: { ... }
   preconditions: [...]
@@ -776,19 +777,42 @@ evidence {
 
 ---
 
+## Metrics Blocks
+
+Used inside services to specify application telemetry/metrics that should be automatically instrumented by code generators.
+
+```omnilang
+metrics:
+  - counter payment_attempts_total {
+      description: "Total payment attempts"
+      labels: [payment_method, status]
+    }
+
+  - histogram checkout_value_usd {
+      description: "Distribution of transaction amounts"
+      buckets: [10, 50, 100, 500, 1000]
+    }
+
+  - gauge active_connections {
+      description: "Current active checkout connections"
+    }
+```
+
+---
+
 ## Reserved Keywords
 
 ```
 module, use, type, struct, enum, service, component, pipeline,
 workflow, agent, schema, policy, contract, constraint, budget,
-evidence, tests, factory, define, goal, inputs, outputs,
-preconditions, postconditions, invariants, errors, depends_on,
-rpc, props, state, events, slots, source, stages, sink,
-states, transitions, triggers, rules, schedule, version,
-target, as, in, not, and, or, if, else, forall, assert,
-expect, given, when, scenario, property, visual, benchmark,
-chaos, security, option, result, true, false, null, none,
-some, ok, err, old, self
+evidence, metrics, counter, gauge, histogram, tests, factory,
+define, goal, inputs, outputs, preconditions, postconditions,
+invariants, errors, depends_on, rpc, props, state, events, slots,
+source, stages, sink, states, transitions, triggers, rules,
+schedule, version, target, as, in, not, and, or, if, else, forall,
+assert, expect, given, when, scenario, property, visual, benchmark,
+chaos, security, option, result, true, false, null, none, some,
+ok, err, old, self
 ```
 
 ---
