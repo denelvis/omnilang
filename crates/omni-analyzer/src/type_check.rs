@@ -85,7 +85,8 @@ pub fn check_types(file: &SourceFile, symbols: &SymbolTable, diagnostics: &mut V
             | Declaration::Workflow(_)
             | Declaration::Policy(_)
             | Declaration::Constraint(_)
-            | Declaration::Mixin(_) => {}
+            | Declaration::Mixin(_)
+            | Declaration::TargetDependencies(_) => {}
         }
     }
 
@@ -948,51 +949,7 @@ mod tests {
         assert!(diags[0].message.contains("NonExistent"));
     }
 
-    #[test]
-    fn test_confidence_and_policies() {
-        let source = r#"
-module test
 
-service LowTrustService {
-  depends_on: ["ProvenService"]
-  rpc do_something {
-    inputs:
-      id: String
-    outputs:
-      status: String
-  }
-}
-
-service ProvenService {
-  constraints:
-    - contract
-  rpc do_formal {
-    inputs:
-      val: Int
-    outputs:
-      res: Int
-  }
-}
-
-policy ProductionPolicy {
-  rules:
-    - environment == "production":
-      - requires: High
-}
-"#;
-        let diags = parse_and_check(source);
-        assert!(
-            !diags.is_empty(),
-            "expected diagnostics due to trust policy violation"
-        );
-        let messages: Vec<_> = diags.iter().map(|d| d.message.clone()).collect();
-        assert!(
-            messages
-                .iter()
-                .any(|m| m.contains("violates trust policy 'ProductionPolicy'")),
-            "expected trust policy violation message, got: {messages:?}"
-        );
-    }
 
     #[test]
     fn builtin_types_valid() {
@@ -1039,16 +996,10 @@ service Orders {
     }
 
     #[test]
-    fn component_and_schema_type_check() {
+    fn schema_type_check() {
         let diags = parse_and_check(
             r#"module test
 type ProductId = UUID
-
-component ProductCard {
-  props:
-    id: ProductId
-    label: String
-}
 
 schema Inventory {
   entity Product {
@@ -1061,12 +1012,13 @@ schema Inventory {
     }
 
     #[test]
-    fn component_and_schema_undefined_type() {
+    fn schema_undefined_type() {
         let diags = parse_and_check(
             r#"module test
-component ProductCard {
-  props:
+schema Inventory {
+  entity Product {
     id: NonExistentId
+  }
 }
 "#,
         );

@@ -1,9 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import pc from "picocolors";
-
-export interface LLMProvider {
-  generateCode(systemPrompt: string, userPrompt: string): Promise<string>;
-}
+import { LLMProvider } from "./base";
 
 export class AnthropicProvider implements LLMProvider {
   private client?: Anthropic;
@@ -22,7 +19,7 @@ export class AnthropicProvider implements LLMProvider {
     }
   }
 
-  public async generateCode(systemPrompt: string, userPrompt: string): Promise<string> {
+  public async generateCode(systemPrompt: string, userPrompt: string, model?: string): Promise<string> {
     if (this.isMock) {
       console.log(pc.blue("   [MOCK LLM] Simulating Claude 3.5 Sonnet response..."));
       return this.getMockResponse(systemPrompt, userPrompt);
@@ -32,12 +29,20 @@ export class AnthropicProvider implements LLMProvider {
       throw new Error("Anthropic client is not initialized.");
     }
 
+    const selectedModel = model || process.env.ANTHROPIC_MODEL || process.env.OMNI_MODEL || "claude-3-5-sonnet-20241022";
     const response = await this.client.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: selectedModel,
       max_tokens: 4000,
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     });
+
+    const inputTokens = response.usage?.input_tokens || 0;
+    const outputTokens = response.usage?.output_tokens || 0;
+    const cost = (inputTokens / 1_000_000) * 3.0 + (outputTokens / 1_000_000) * 15.0;
+    console.log(pc.green(`   [LLM Telemetry] Model: ${selectedModel}`));
+    console.log(pc.green(`   [LLM Telemetry] Tokens: Input: ${inputTokens}, Output: ${outputTokens}`));
+    console.log(pc.green(`   [LLM Telemetry] Estimated Cost: $${cost.toFixed(5)}`));
 
     const content = response.content[0];
     if (content.type !== "text") {
@@ -47,7 +52,7 @@ export class AnthropicProvider implements LLMProvider {
     return content.text;
   }
 
-  private getMockResponse(systemPrompt: string, userPrompt: string): string {
+  public getMockResponse(systemPrompt: string, userPrompt: string): string {
     const promptLower = userPrompt.toLowerCase();
 
     // Detect target from the system prompt
@@ -58,7 +63,7 @@ export class AnthropicProvider implements LLMProvider {
       return this.getMockPythonResponse(promptLower, userPrompt);
     }
 
-    return this.getMockTypeScriptResponse(promptLower, userPrompt);
+    return this.getMockTypeScriptResponse(promptLower, userPrompt, systemPrompt);
   }
 
   private extractServiceName(prompt: string): string {
@@ -75,7 +80,69 @@ export class AnthropicProvider implements LLMProvider {
     return name.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, "");
   }
 
-  private getMockTypeScriptResponse(promptLower: string, rawPrompt: string): string {
+  private getMockTypeScriptResponse(promptLower: string, rawPrompt: string, systemPrompt: string): string {
+    // Case 0: SelfCorrectingService for validating the self-correction loop
+    if (promptLower.includes("selfcorrectingservice")) {
+      const isRetry = systemPrompt.includes("past generation retries") || systemPrompt.includes("LLM Prompt Adaptations");
+      if (!isRetry) {
+        // Return code with a TS type error on the first attempt
+        return JSON.stringify({
+          files: [
+            {
+              path: "src/services/SelfCorrectingService.ts",
+              content: `export class SelfCorrectingService {
+  public async process(): Promise<string> {
+    const value: number = "this is a string, which triggers a TS compile error";
+    return "ok";
+  }
+}
+`
+            },
+            {
+              path: "tests/SelfCorrectingService.test.ts",
+              content: `import { SelfCorrectingService } from "../src/services/SelfCorrectingService";
+describe("SelfCorrectingService", () => {
+  it("should process", async () => {
+    const service = new SelfCorrectingService();
+    const res = await service.process();
+    expect(res).toBe("ok");
+  });
+});
+`
+            }
+          ]
+        });
+      } else {
+        // Return corrected code on the retry attempt
+        return JSON.stringify({
+          files: [
+            {
+              path: "src/services/SelfCorrectingService.ts",
+              content: `export class SelfCorrectingService {
+  public async process(): Promise<string> {
+    const value: number = 42;
+    return "ok";
+  }
+}
+`
+            },
+            {
+              path: "tests/SelfCorrectingService.test.ts",
+              content: `import { SelfCorrectingService } from "../src/services/SelfCorrectingService";
+describe("SelfCorrectingService", () => {
+  it("should process", async () => {
+    const service = new SelfCorrectingService();
+    const res = await service.process();
+    expect(res).toBe("ok");
+  });
+});
+`
+            }
+          ]
+        });
+      }
+    }
+
     // Case 1: Checkout service
     if (promptLower.includes("checkoutservice") || promptLower.includes("\"checkout\"")) {
       return JSON.stringify({
@@ -140,6 +207,93 @@ describe("CheckoutService", () => {
     const counters = service.metrics.payment_attempts_total.counters;
     const labelKey = JSON.stringify({ payment_method: "credit_card", status: "success" });
     expect(counters.get(labelKey)).toBe(1);
+  });
+});
+`
+          }
+        ]
+      });
+    }
+
+    // Case 1.5: UserService / stabilization test spec
+    if (promptLower.includes("userservice") || promptLower.includes("registeruser")) {
+      return JSON.stringify({
+        files: [
+          {
+            path: "src/services/UserService.ts",
+            content: `/**
+ * UserService provides methods to register and manage user accounts
+ */
+export class UserService {
+  private users = new Map<string, string>();
+
+  /**
+   * Register a new user with a given name
+   */
+  public async registerUser(name: string): Promise<string> {
+    if (!name || name.trim() === "") {
+      throw new Error("Name cannot be empty");
+    }
+    const id = "user-" + Math.random().toString(36).substring(2, 9);
+    this.users.set(id, name);
+    return id;
+  }
+
+  /**
+   * Retrieve user name by their ID
+   */
+  public async getUserName(id: string): Promise<string> {
+    const name = this.users.get(id);
+    if (!name) {
+      throw new Error("User not found");
+    }
+    return name;
+  }
+
+  /**
+   * Update user profile details
+   */
+  public async updateUser(id: string, name: string): Promise<void> {
+    if (!name || name.trim() === "") {
+      throw new Error("Name cannot be empty");
+    }
+    if (!this.users.has(id)) {
+      throw new Error("User not found");
+    }
+    this.users.set(id, name);
+  }
+}
+`
+          },
+          {
+            path: "tests/UserService.test.ts",
+            content: `import { UserService } from "../src/services/UserService";
+
+describe("UserService", () => {
+  let service: UserService;
+
+  beforeEach(() => {
+    service = new UserService();
+  });
+
+  it("should register, retrieve, and update user successfully", async () => {
+    const id = await service.registerUser("Alice");
+    expect(id).toBeDefined();
+
+    const name = await service.getUserName(id);
+    expect(name).toBe("Alice");
+
+    await service.updateUser(id, "Bob");
+    const updatedName = await service.getUserName(id);
+    expect(updatedName).toBe("Bob");
+  });
+
+  it("should fail to register user with empty name", async () => {
+    await expect(service.registerUser("")).rejects.toThrow("Name cannot be empty");
+  });
+
+  it("should fail to update user with empty name", async () => {
+    await expect(service.updateUser("user-123", "")).rejects.toThrow("Name cannot be empty");
   });
 });
 `

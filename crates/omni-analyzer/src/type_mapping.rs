@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 /// A type mapping entry from OmniLang to a target language type.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct TypeMapping {
     pub omni_type: String,
     pub target_type: String,

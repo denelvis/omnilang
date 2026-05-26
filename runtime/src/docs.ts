@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import pc from "picocolors";
+import { SpecIR, ServiceDef, SchemaDecl } from "./types";
 
 export interface DocGeneratorOptions {
   irPath: string;
@@ -19,7 +20,7 @@ export class DocGenerator {
   public async generate(): Promise<void> {
     // 1. Load Spec IR JSON
     const irContent = fs.readFileSync(this.irPath, "utf8");
-    const ir = JSON.parse(irContent);
+    const ir: SpecIR = JSON.parse(irContent);
 
     // Ensure output directory exists
     fs.mkdirSync(this.outputDir, { recursive: true });
@@ -43,7 +44,7 @@ export class DocGenerator {
     console.log(`   - Generated HTML Docs: ${pc.cyan(htmlPath)}`);
   }
 
-  private buildOpenAPISpec(ir: any): any {
+  private buildOpenAPISpec(ir: SpecIR): any {
     const paths: any = {};
     const schemas: any = {};
 
@@ -52,9 +53,9 @@ export class DocGenerator {
 
     // Simple Type Schemas
     for (const decl of declarations) {
-      if (decl.Type) {
+      if ("Type" in decl) {
         const typeDecl = decl.Type;
-        if (typeDecl.kind?.Struct) {
+        if (typeDecl.kind && "Struct" in typeDecl.kind) {
           const properties: any = {};
           const required: string[] = [];
           for (const field of typeDecl.kind.Struct.fields || []) {
@@ -69,7 +70,7 @@ export class DocGenerator {
             properties,
             required
           };
-        } else if (typeDecl.kind?.Enum) {
+        } else if (typeDecl.kind && "Enum" in typeDecl.kind) {
           schemas[typeDecl.name] = {
             type: "string",
             enum: (typeDecl.kind.Enum.variants || []).map((v: any) => v.name)
@@ -80,7 +81,7 @@ export class DocGenerator {
 
     // Build Paths from Services & RPCs
     for (const decl of declarations) {
-      if (decl.Service) {
+      if ("Service" in decl) {
         const service = decl.Service;
         for (const rpc of service.rpcs || []) {
           const pathName = `/api/${service.name}/${rpc.name}`;
@@ -172,13 +173,13 @@ export class DocGenerator {
     };
   }
 
-  private buildRunbook(ir: any): string {
+  private buildRunbook(ir: SpecIR): string {
     let md = `# Incident Response & Service Constraints Runbook\n\n`;
     md += `This document lists runtime constraints, performance SLAs, and troubleshooting runbooks for the **${ir.module_path?.join(".") || "System"}** module.\n\n`;
 
     const declarations = ir.source_file?.declarations || [];
     for (const decl of declarations) {
-      if (decl.Service) {
+      if ("Service" in decl) {
         const service = decl.Service;
         md += `## Service: ${service.name}\n\n`;
         md += `**Goal:** ${service.goal || "No goal specified."}\n\n`;
@@ -236,12 +237,12 @@ export class DocGenerator {
     return md;
   }
 
-  private buildHTMLDocs(ir: any, openapi: any, runbook: string): string {
+  private buildHTMLDocs(ir: SpecIR, openapi: any, runbook: string): string {
     const services = ir.services || [];
     const moduleName = ir.module_path?.join(".") || "Spec";
 
     // Build lists for HTML templates
-    const servicesListHTML = services.map((s: any) => `
+    const servicesListHTML = services.map((s: ServiceDef) => `
       <div class="card service-card">
         <h3>${s.name}</h3>
         <p class="goal">${s.goal ? `<strong>Goal:</strong> ${s.goal}` : "No goal described."}</p>
@@ -265,8 +266,10 @@ export class DocGenerator {
       </div>
     `).join("");
 
-    const schemaDeclarations = (ir.source_file?.declarations || []).filter((d: any) => d.Schema);
-    const schemasListHTML = schemaDeclarations.map((d: any) => {
+    const schemaDeclarations = (ir.source_file?.declarations || []).filter(
+      (d): d is { Schema: SchemaDecl } => "Schema" in d
+    );
+    const schemasListHTML = schemaDeclarations.map((d) => {
       const s = d.Schema;
       return `
         <div class="card schema-card">

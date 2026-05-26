@@ -17,13 +17,13 @@ pub struct Parser {
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        // Filter out comments — they are not part of the AST
+        // Filter out line and block comments, but keep DocComment for AST doc comment support
         let tokens: Vec<Token> = tokens
             .into_iter()
             .filter(|t| {
                 !matches!(
                     t.kind,
-                    TokenKind::LineComment | TokenKind::DocComment | TokenKind::BlockComment
+                    TokenKind::LineComment | TokenKind::BlockComment
                 )
             })
             .collect();
@@ -43,6 +43,7 @@ impl Parser {
         let mut exports = Vec::new();
 
         while !self.is_at_end() {
+            let doc_comment = self.consume_doc_comments();
             match self.peek_kind() {
                 TokenKind::KwUse => {
                     if let Some(import) = self.parse_import() {
@@ -64,12 +65,14 @@ impl Parser {
                         TokenKind::KwType => {
                             if let Some(mut decl) = self.parse_type_decl() {
                                 decl.visibility = Visibility::Private;
+                                decl.doc_comment = doc_comment;
                                 declarations.push(Declaration::Type(decl));
                             }
                         }
                         TokenKind::KwService => {
                             if let Some(mut decl) = self.parse_service_decl() {
                                 decl.visibility = Visibility::Private;
+                                decl.doc_comment = doc_comment;
                                 declarations.push(Declaration::Service(decl));
                             }
                         }
@@ -95,12 +98,14 @@ impl Parser {
                     }
                 }
                 TokenKind::KwType => {
-                    if let Some(decl) = self.parse_type_decl() {
+                    if let Some(mut decl) = self.parse_type_decl() {
+                        decl.doc_comment = doc_comment;
                         declarations.push(Declaration::Type(decl));
                     }
                 }
                 TokenKind::KwService => {
-                    if let Some(decl) = self.parse_service_decl() {
+                    if let Some(mut decl) = self.parse_service_decl() {
+                        decl.doc_comment = doc_comment;
                         declarations.push(Declaration::Service(decl));
                     }
                 }
@@ -141,11 +146,16 @@ impl Parser {
                         self.advance();
                     }
                 }
+                TokenKind::KwTargetDependencies => {
+                    if let Some(decl) = self.parse_target_dependencies_decl() {
+                        declarations.push(Declaration::TargetDependencies(decl));
+                    }
+                }
                 TokenKind::Eof => break,
                 _ => {
                     let tok = self.advance();
                     self.errors.push(ParseError::Expected {
-                        expected: "top-level declaration (type, service, component, pipeline, workflow, agent, schema, policy, mixin, use)".to_string(),
+                        expected: "top-level declaration (type, service, schema, target_dependencies, mixin, use)".to_string(),
                         found: format!("'{}'", tok.text),
                         span: tok.span,
                     });
@@ -337,6 +347,7 @@ impl Parser {
                         type_params,
                         kind,
                         visibility: Visibility::Public,
+                        doc_comment: None,
                         span: start.merge(end),
                     });
                 }
@@ -349,6 +360,7 @@ impl Parser {
                         type_params,
                         kind,
                         visibility: Visibility::Public,
+                        doc_comment: None,
                         span: start.merge(end),
                     });
                 }
@@ -365,6 +377,7 @@ impl Parser {
                             span: start.merge(end),
                         }),
                         visibility: Visibility::Public,
+                        doc_comment: None,
                         span: start.merge(end),
                     });
                 }
@@ -386,6 +399,7 @@ impl Parser {
                                 span: start.merge(end),
                             }),
                             visibility: Visibility::Public,
+                            doc_comment: None,
                             span: start.merge(end),
                         });
                     }
@@ -397,6 +411,7 @@ impl Parser {
                         type_params,
                         kind: TypeKind::Alias(type_ref),
                         visibility: Visibility::Public,
+                        doc_comment: None,
                         span: start.merge(end),
                     });
                 }
@@ -585,6 +600,7 @@ impl Parser {
                 self.advance();
                 continue;
             }
+            let doc_comment = self.consume_doc_comments();
             let start = self.current_span();
             let name_tok = self.advance();
             let name = name_tok.text;
@@ -604,6 +620,7 @@ impl Parser {
                 name,
                 ty,
                 default,
+                doc_comment,
                 span: start.merge(end),
             });
         }
@@ -626,12 +643,15 @@ impl Parser {
         let mut goal = None;
         let mut constraints = Vec::new();
         let mut depends_on = Vec::new();
+        let mut dependencies = Vec::new();
+        let mut policies = Vec::new();
         let mut rpcs = Vec::new();
         let mut budget = None;
         let mut metrics = Vec::new();
         let mut invariants = Vec::new();
 
         while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+            let doc_comment = self.consume_doc_comments();
             match self.peek_kind() {
                 TokenKind::KwGoal => {
                     self.advance();
@@ -654,8 +674,27 @@ impl Parser {
                     self.expect(TokenKind::Colon);
                     depends_on = self.parse_identifier_list();
                 }
+                TokenKind::KwDependencies => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while self.check(TokenKind::Minus) {
+                        if let Some(dep) = self.parse_dependency_ref() {
+                            dependencies.push(dep);
+                        }
+                    }
+                }
+                TokenKind::KwPolicies => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while self.check(TokenKind::Minus) {
+                        if let Some(policy) = self.parse_service_policy() {
+                            policies.push(policy);
+                        }
+                    }
+                }
                 TokenKind::KwRpc => {
-                    if let Some(rpc) = self.parse_rpc_decl() {
+                    if let Some(mut rpc) = self.parse_rpc_decl() {
+                        rpc.doc_comment = doc_comment;
                         rpcs.push(rpc);
                     }
                 }
@@ -688,15 +727,19 @@ impl Parser {
             goal,
             constraints,
             depends_on,
+            dependencies,
+            policies,
             rpcs,
             budget,
             metrics,
             invariants,
             applies: Vec::new(),
             visibility: Visibility::Public,
+            doc_comment: None,
             span: start.merge(end),
         })
     }
+
 
     fn parse_rpc_decl(&mut self) -> Option<RpcDecl> {
         let start = self.current_span();
@@ -704,8 +747,6 @@ impl Parser {
 
         let name_tok = self.advance();
         let name = name_tok.text.clone();
-
-        self.expect(TokenKind::BraceOpen);
 
         let mut inputs = Vec::new();
         let mut outputs = Vec::new();
@@ -715,52 +756,76 @@ impl Parser {
         let mut constraints = Vec::new();
         let mut tests = Vec::new();
 
-        while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
-            match self.peek_kind() {
-                TokenKind::KwInputs => {
-                    self.advance();
-                    self.expect(TokenKind::Colon);
-                    inputs = self.parse_inline_fields();
-                }
-                TokenKind::KwOutputs => {
-                    self.advance();
-                    self.expect(TokenKind::Colon);
-                    outputs = self.parse_inline_fields();
-                }
-                TokenKind::KwPreconditions => {
-                    self.advance();
-                    self.expect(TokenKind::Colon);
-                    preconditions = self.parse_expression_list();
-                }
-                TokenKind::KwPostconditions => {
-                    self.advance();
-                    self.expect(TokenKind::Colon);
-                    postconditions = self.parse_expression_list();
-                }
-                TokenKind::KwErrors => {
-                    self.advance();
-                    self.expect(TokenKind::Colon);
-                    errors = self.parse_error_list();
-                }
-                TokenKind::KwTests => {
-                    self.advance();
-                    self.expect(TokenKind::Colon);
-                    tests = self.parse_test_list();
-                }
-                TokenKind::KwConstraints | TokenKind::Ident
-                    if self.peek_text() == "constraints" =>
-                {
-                    self.advance();
-                    self.expect(TokenKind::Colon);
-                    constraints = self.parse_constraint_list();
-                }
-                _ => {
-                    self.advance();
-                }
+        let is_shorthand = self.check(TokenKind::ParenOpen);
+
+        if is_shorthand {
+            inputs = self.parse_field_list(TokenKind::ParenOpen, TokenKind::ParenClose);
+            if self.check(TokenKind::Arrow) {
+                self.advance(); // consume '->'
+                let ret_start = self.current_span();
+                let ty = self.parse_type_ref();
+                let ret_end = self.previous_span();
+                outputs = vec![Field {
+                    name: "result".to_string(),
+                    ty,
+                    default: None,
+                    doc_comment: None,
+                    span: ret_start.merge(ret_end),
+                }];
             }
         }
 
-        self.expect(TokenKind::BraceClose);
+        if !is_shorthand || self.check(TokenKind::BraceOpen) {
+            self.expect(TokenKind::BraceOpen);
+
+            while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+                match self.peek_kind() {
+                    TokenKind::KwInputs => {
+                        self.advance();
+                        self.expect(TokenKind::Colon);
+                        inputs = self.parse_inline_fields();
+                    }
+                    TokenKind::KwOutputs => {
+                        self.advance();
+                        self.expect(TokenKind::Colon);
+                        outputs = self.parse_inline_fields();
+                    }
+                    TokenKind::KwPreconditions => {
+                        self.advance();
+                        self.expect(TokenKind::Colon);
+                        preconditions = self.parse_expression_list();
+                    }
+                    TokenKind::KwPostconditions => {
+                        self.advance();
+                        self.expect(TokenKind::Colon);
+                        postconditions = self.parse_expression_list();
+                    }
+                    TokenKind::KwErrors => {
+                        self.advance();
+                        self.expect(TokenKind::Colon);
+                        errors = self.parse_error_list();
+                    }
+                    TokenKind::KwTests => {
+                        self.advance();
+                        self.expect(TokenKind::Colon);
+                        tests = self.parse_test_list();
+                    }
+                    TokenKind::KwConstraints | TokenKind::Ident
+                        if self.peek_text() == "constraints" =>
+                    {
+                        self.advance();
+                        self.expect(TokenKind::Colon);
+                        constraints = self.parse_constraint_list();
+                    }
+                    _ => {
+                        self.advance();
+                    }
+                }
+            }
+
+            self.expect(TokenKind::BraceClose);
+        }
+
         let end = self.previous_span();
 
         Some(RpcDecl {
@@ -772,6 +837,7 @@ impl Parser {
             errors,
             constraints,
             tests,
+            doc_comment: None,
             span: start.merge(end),
         })
     }
@@ -926,32 +992,37 @@ impl Parser {
 
         // Fields come in "name: Type" pairs, one per line, no braces
         // Stop when we hit a section keyword (inputs, outputs, etc.)
-        while (self.check(TokenKind::Ident) || self.peek_kind().is_keyword())
-            && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon)
-            && !self.is_section_keyword(self.peek())
-            && !self.is_at_end()
-        {
-            let start = self.current_span();
-            let name_tok = self.advance();
-            let name = name_tok.text;
-            self.advance(); // consume ':'
+        while !self.is_at_end() {
+            let doc_comment = self.consume_doc_comments();
+            if (self.check(TokenKind::Ident) || self.peek_kind().is_keyword())
+                && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon)
+                && !self.is_section_keyword(self.peek())
+            {
+                let start = self.current_span();
+                let name_tok = self.advance();
+                let name = name_tok.text;
+                self.advance(); // consume ':'
 
-            let ty = self.parse_type_ref();
+                let ty = self.parse_type_ref();
 
-            let default = if self.check(TokenKind::Eq) {
-                self.advance();
-                Some(self.parse_expression())
+                let default = if self.check(TokenKind::Eq) {
+                    self.advance();
+                    Some(self.parse_expression())
+                } else {
+                    None
+                };
+
+                let end = self.previous_span();
+                fields.push(Field {
+                    name,
+                    ty,
+                    default,
+                    doc_comment,
+                    span: start.merge(end),
+                });
             } else {
-                None
-            };
-
-            let end = self.previous_span();
-            fields.push(Field {
-                name,
-                ty,
-                default,
-                span: start.merge(end),
-            });
+                break;
+            }
         }
 
         fields
@@ -1184,6 +1255,77 @@ impl Parser {
         list
     }
 
+    fn parse_dependency_ref(&mut self) -> Option<DependencyRef> {
+        let start = self.current_span();
+        if !self.check(TokenKind::Minus) {
+            return None;
+        }
+        self.advance(); // consume '-'
+
+        let name_tok = self.advance();
+        let name = name_tok.text.clone();
+
+        let mut notes = None;
+        if self.check(TokenKind::ParenOpen) {
+            self.advance(); // consume '('
+            let mut notes_text = String::new();
+            while !self.check(TokenKind::ParenClose) && !self.is_at_end() {
+                let tok = self.advance();
+                if !notes_text.is_empty() {
+                    notes_text.push(' ');
+                }
+                notes_text.push_str(&tok.text);
+            }
+            self.expect(TokenKind::ParenClose);
+            notes = Some(notes_text);
+        }
+
+        let end = self.previous_span();
+        Some(DependencyRef {
+            name,
+            notes,
+            span: start.merge(end),
+        })
+    }
+
+    fn parse_service_policy(&mut self) -> Option<ServicePolicy> {
+        let start = self.current_span();
+        if !self.check(TokenKind::Minus) {
+            return None;
+        }
+        self.advance(); // consume '-'
+
+        let name_tok = self.advance();
+        let name = name_tok.text.clone();
+
+        self.expect(TokenKind::Colon);
+
+        let mut entries = Vec::new();
+        while (self.check(TokenKind::Ident) || self.peek_kind().is_keyword())
+            && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon)
+            && !self.is_section_keyword(self.peek())
+        {
+            let estart = self.current_span();
+            let key = self.advance().text;
+            self.expect(TokenKind::Colon);
+            let value = self.parse_expression();
+            let eend = self.previous_span();
+            entries.push(ConfigEntry {
+                key,
+                value,
+                span: estart.merge(eend),
+            });
+        }
+
+        let end = self.previous_span();
+        Some(ServicePolicy {
+            name,
+            entries,
+            span: start.merge(end),
+        })
+    }
+
+
     // ── Expression lists ─────────────────────────────
 
     fn parse_expression_list(&mut self) -> Vec<Expression> {
@@ -1191,11 +1333,26 @@ impl Parser {
 
         while self.check(TokenKind::Minus) {
             self.advance(); // consume '-'
-            exprs.push(self.parse_expression());
+            if self.check(TokenKind::Ident) && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon) {
+                let start = self.current_span();
+                let label_tok = self.advance();
+                self.expect(TokenKind::Colon);
+                let expr = self.parse_expression();
+                let span = start.merge(self.previous_span());
+                exprs.push(Expression::BinaryOp {
+                    left: Box::new(Expression::Identifier(label_tok.text, label_tok.span)),
+                    op: BinaryOperator::Eq,
+                    right: Box::new(expr),
+                    span,
+                });
+            } else {
+                exprs.push(self.parse_expression());
+            }
         }
 
         exprs
     }
+
 
     // ── Expression parsing (simplified Pratt parser) ─
 
@@ -1564,6 +1721,23 @@ impl Parser {
         self.tokens.get(self.pos + offset)
     }
 
+    fn consume_doc_comments(&mut self) -> Option<String> {
+        let mut docs = Vec::new();
+        while self.check(TokenKind::DocComment) {
+            let tok = self.advance();
+            let mut line = tok.text.trim_start_matches('/');
+            if line.starts_with(' ') {
+                line = &line[1..];
+            }
+            docs.push(line.trim_end().to_string());
+        }
+        if docs.is_empty() {
+            None
+        } else {
+            Some(docs.join("\n"))
+        }
+    }
+
     fn advance(&mut self) -> Token {
         let token = self.tokens[self.pos.min(self.tokens.len() - 1)].clone();
         if self.pos < self.tokens.len() - 1 {
@@ -1619,6 +1793,8 @@ impl Parser {
                 | TokenKind::KwGoal
                 | TokenKind::KwBudget
                 | TokenKind::KwDependsOn
+                | TokenKind::KwDependencies
+                | TokenKind::KwPolicies
                 | TokenKind::KwRpc
                 | TokenKind::KwProps
                 | TokenKind::KwState
@@ -1930,7 +2106,7 @@ impl Parser {
 
     fn parse_workflow_decl(&mut self) -> Option<WorkflowDecl> {
         let start = self.current_span();
-        self.advance(); // consume 'workflow'
+        self.advance(); // consume 'workflow' (or 'orchestrator')
 
         let name_tok = self.advance();
         let name = name_tok.text.clone();
@@ -1942,6 +2118,9 @@ impl Parser {
         let mut transitions = Vec::new();
         let mut constraints = Vec::new();
         let mut tests = Vec::new();
+        let mut dependencies = Vec::new();
+        let mut policies = Vec::new();
+        let mut invariants = Vec::new();
 
         while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
             match self.peek_kind() {
@@ -1956,75 +2135,150 @@ impl Parser {
                 TokenKind::KwStates => {
                     self.advance();
                     self.expect(TokenKind::Colon);
+                    let has_brackets = if self.check(TokenKind::BracketOpen) {
+                        self.advance();
+                        true
+                    } else {
+                        false
+                    };
                     while (self.check(TokenKind::Ident) || self.peek_kind().is_keyword())
                         && !self.is_section_keyword(self.peek())
                         && !self.is_at_end()
                     {
                         states.push(self.advance().text);
+                        if has_brackets && self.check(TokenKind::Comma) {
+                            self.advance();
+                        }
+                    }
+                    if has_brackets {
+                        self.expect(TokenKind::BracketClose);
                     }
                 }
                 TokenKind::KwTransitions => {
                     self.advance();
                     self.expect(TokenKind::Colon);
-                    while (self.check(TokenKind::Ident) || self.check(TokenKind::Star))
+                    while (self.check(TokenKind::Ident) || self.check(TokenKind::Star) || self.check(TokenKind::Minus))
                         && !self.is_section_keyword(self.peek())
                         && !self.is_at_end()
                     {
+                        if self.check(TokenKind::Minus) {
+                            self.advance(); // consume '-'
+                        }
                         let start_trans = self.current_span();
-                        let from = self.advance().text;
-                        self.expect(TokenKind::Arrow);
-                        let to = self.advance().text;
-                        self.expect(TokenKind::Colon);
+
+                        let mut states_in_chain = Vec::new();
+                        states_in_chain.push(self.advance().text); // first state
+                        while self.check(TokenKind::Arrow) {
+                            self.advance(); // consume '->'
+                            states_in_chain.push(self.advance().text); // next state
+                        }
 
                         let mut trigger = None;
                         let mut timeout = None;
                         let mut guard = None;
                         let mut actions = Vec::new();
 
-                        while (self.check(TokenKind::Ident) || self.peek_kind().is_keyword())
-                            && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon)
-                            && !self.is_section_keyword(self.peek())
-                        {
-                            let key = self.advance().text;
+                        if self.check(TokenKind::Colon) {
                             self.advance(); // consume ':'
-
-                            if key == "trigger" {
-                                trigger = Some(self.advance().text);
-                            } else if key == "timeout" {
-                                let duration = self.parse_expression();
-                                self.expect(TokenKind::Arrow);
-                                let target_state = self.advance().text;
-                                timeout = Some(WorkflowTimeout {
-                                    duration,
-                                    target_state,
-                                    span: start_trans.merge(self.previous_span()),
-                                });
-                            } else if key == "guard" {
-                                guard = Some(self.parse_expression());
-                            } else if key == "action" {
-                                while self.check(TokenKind::Ident) {
-                                    actions.push(self.advance().text);
-                                    if self.check(TokenKind::Comma) {
-                                        self.advance();
-                                    } else {
-                                        break;
+                            while (self.check(TokenKind::Ident) || self.peek_kind().is_keyword())
+                                && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon)
+                                && !self.is_section_keyword(self.peek())
+                            {
+                                let key = self.advance().text;
+                                self.advance(); // consume ':'
+                                if key == "trigger" {
+                                    trigger = Some(self.advance().text);
+                                } else if key == "timeout" {
+                                    let duration = self.parse_expression();
+                                    self.expect(TokenKind::Arrow);
+                                    let target_state = self.advance().text;
+                                    timeout = Some(WorkflowTimeout {
+                                        duration,
+                                        target_state,
+                                        span: start_trans.merge(self.previous_span()),
+                                    });
+                                } else if key == "guard" {
+                                    guard = Some(self.parse_expression());
+                                } else if key == "action" {
+                                    while self.check(TokenKind::Ident) {
+                                        actions.push(self.advance().text);
+                                        if self.check(TokenKind::Comma) {
+                                            self.advance();
+                                        } else {
+                                            break;
+                                        }
                                     }
+                                } else {
+                                    self.parse_expression();
                                 }
-                            } else {
-                                self.parse_expression();
                             }
                         }
-                        let end_trans = self.previous_span();
-                        transitions.push(WorkflowTransition {
-                            from,
-                            to,
-                            trigger,
-                            timeout,
-                            guard,
-                            actions,
-                            span: start_trans.merge(end_trans),
-                        });
+
+                        if self.check(TokenKind::BracketOpen) {
+                            self.advance(); // consume '['
+                            while !self.check(TokenKind::BracketClose) && !self.is_at_end() {
+                                let key = if self.check(TokenKind::Ident) {
+                                    self.advance().text
+                                } else {
+                                    break;
+                                };
+                                self.expect(TokenKind::Colon);
+                                if key == "on" {
+                                    let mut trigger_text = String::new();
+                                    while !self.check(TokenKind::BracketClose) && !self.check(TokenKind::Comma) && !self.is_at_end() {
+                                        let tok = self.advance();
+                                        if !trigger_text.is_empty() {
+                                            trigger_text.push(' ');
+                                        }
+                                        trigger_text.push_str(&tok.text);
+                                    }
+                                    trigger = Some(trigger_text);
+                                } else if key == "guard" {
+                                    guard = Some(self.parse_expression());
+                                }
+                                if self.check(TokenKind::Comma) {
+                                    self.advance();
+                                }
+                            }
+                            self.expect(TokenKind::BracketClose);
+                        }
+
+                        // Generate sequential transitions from the chain
+                        for i in 0..states_in_chain.len().saturating_sub(1) {
+                            transitions.push(WorkflowTransition {
+                                from: states_in_chain[i].clone(),
+                                to: states_in_chain[i + 1].clone(),
+                                trigger: trigger.clone(),
+                                timeout: timeout.clone(),
+                                guard: guard.clone(),
+                                actions: actions.clone(),
+                                span: start_trans.merge(self.previous_span()),
+                            });
+                        }
                     }
+                }
+                TokenKind::KwDependencies => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while self.check(TokenKind::Minus) {
+                        if let Some(dep) = self.parse_dependency_ref() {
+                            dependencies.push(dep);
+                        }
+                    }
+                }
+                TokenKind::KwPolicies => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    while self.check(TokenKind::Minus) {
+                        if let Some(policy) = self.parse_service_policy() {
+                            policies.push(policy);
+                        }
+                    }
+                }
+                TokenKind::KwInvariants => {
+                    self.advance();
+                    self.expect(TokenKind::Colon);
+                    invariants = self.parse_expression_list();
                 }
                 TokenKind::KwTests => {
                     self.advance();
@@ -2054,9 +2308,13 @@ impl Parser {
             transitions,
             constraints,
             tests,
+            dependencies,
+            policies,
+            invariants,
             span: start.merge(end),
         })
     }
+
 
     fn parse_agent_decl(&mut self) -> Option<AgentDecl> {
         let start = self.current_span();
@@ -2140,6 +2398,7 @@ impl Parser {
                                 name: param_name.clone(),
                                 ty,
                                 default: None,
+                                doc_comment: None,
                                 span: field_start.merge(field_end),
                             };
 
@@ -2218,6 +2477,7 @@ impl Parser {
         let mut constraints = Vec::new();
 
         while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+            let doc_comment = self.consume_doc_comments();
             match self.peek_kind() {
                 TokenKind::KwGoal => {
                     self.advance();
@@ -2240,6 +2500,7 @@ impl Parser {
 
                     let mut fields = Vec::new();
                     while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+                        let field_doc_comment = self.consume_doc_comments();
                         let field_start = self.current_span();
                         let field_name = self.advance().text;
                         self.expect(TokenKind::Colon);
@@ -2282,6 +2543,7 @@ impl Parser {
                             ty,
                             default,
                             decorators,
+                            doc_comment: field_doc_comment,
                             span: field_start.merge(field_end),
                         });
                     }
@@ -2290,6 +2552,7 @@ impl Parser {
                     entities.push(EntityDecl {
                         name: entity_name,
                         fields,
+                        doc_comment,
                         span: start_entity.merge(end_entity),
                     });
                 }
@@ -2613,6 +2876,101 @@ impl Parser {
         })
     }
 
+    fn parse_target_dependencies_decl(&mut self) -> Option<TargetDependenciesDecl> {
+        let start = self.current_span();
+        self.advance(); // consume 'target_dependencies'
+
+        self.expect(TokenKind::BraceOpen);
+
+        let mut entries = Vec::new();
+
+        while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+            let entry_start = self.current_span();
+            let target_tok = self.advance(); // typically Ident e.g. "typescript"
+            let target = target_tok.text.clone();
+
+            self.expect(TokenKind::BraceOpen);
+
+            let mut packages = Vec::new();
+
+            while !self.check(TokenKind::BraceClose) && !self.is_at_end() {
+                let pkg_start = self.current_span();
+                // package name can be StringLiteral (e.g., "@types/node") or Ident (e.g., "dotenv")
+                let name = match self.peek_kind() {
+                    TokenKind::StringLiteral => {
+                        let name_tok = self.advance();
+                        // Strip quotes
+                        let s = name_tok.text;
+                        if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+                            s[1..s.len()-1].to_string()
+                        } else {
+                            s
+                        }
+                    }
+                    TokenKind::Ident => {
+                        let name_tok = self.advance();
+                        name_tok.text
+                    }
+                    _ => {
+                        let tok = self.advance();
+                        self.errors.push(ParseError::Expected {
+                            expected: "package name (identifier or string literal)".to_string(),
+                            found: format!("'{}'", tok.text),
+                            span: tok.span,
+                        });
+                        continue;
+                    }
+                };
+
+                self.expect(TokenKind::Colon);
+
+                let version = match self.peek_kind() {
+                    TokenKind::StringLiteral => {
+                        let ver_tok = self.advance();
+                        let s = ver_tok.text;
+                        if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+                            s[1..s.len()-1].to_string()
+                        } else {
+                            s
+                        }
+                    }
+                    _ => {
+                        let tok = self.advance();
+                        self.errors.push(ParseError::Expected {
+                            expected: "package version (string literal)".to_string(),
+                            found: format!("'{}'", tok.text),
+                            span: tok.span,
+                        });
+                        continue;
+                    }
+                };
+
+                let pkg_end = self.previous_span();
+                packages.push(DependencyPackage {
+                    name,
+                    version,
+                    span: pkg_start.merge(pkg_end),
+                });
+            }
+
+            self.expect(TokenKind::BraceClose);
+            let entry_end = self.previous_span();
+            entries.push(TargetDependencyEntry {
+                target,
+                packages,
+                span: entry_start.merge(entry_end),
+            });
+        }
+
+        self.expect(TokenKind::BraceClose);
+        let end = self.previous_span();
+
+        Some(TargetDependenciesDecl {
+            entries,
+            span: start.merge(end),
+        })
+    }
+
     fn synchronize(&mut self) {
         while !self.is_at_end() {
             match self.peek_kind() {
@@ -2620,16 +2978,17 @@ impl Parser {
                 | TokenKind::KwUse
                 | TokenKind::KwType
                 | TokenKind::KwService
-                | TokenKind::KwComponent
-                | TokenKind::KwPipeline
-                | TokenKind::KwWorkflow
-                | TokenKind::KwAgent
+                // | TokenKind::KwComponent
+                // | TokenKind::KwPipeline
+                // | TokenKind::KwWorkflow
+                // | TokenKind::KwAgent
                 | TokenKind::KwSchema
-                | TokenKind::KwPolicy
+                // | TokenKind::KwPolicy
                 | TokenKind::KwConstraint
                 | TokenKind::KwMixin
                 | TokenKind::KwExport
-                | TokenKind::KwPrivate => return,
+                | TokenKind::KwPrivate
+                | TokenKind::KwTargetDependencies => return,
                 _ => {
                     self.advance();
                 }
@@ -2836,6 +3195,76 @@ service Inventory {
     }
 
     #[test]
+    fn parse_rpc_shorthand_syntax_test() {
+        let file = parse_ok(
+            r#"module test
+service GreetService {
+  rpc GreetShorthand(name: String) -> String
+  rpc GreetShorthandWithBody(name: String) -> String {
+    preconditions:
+      - name != ""
+  }
+  rpc GreetNoReturn(name: String)
+}"#,
+        );
+        if let Declaration::Service(s) = &file.declarations[0] {
+            assert_eq!(s.rpcs.len(), 3);
+            
+            // First RPC: GreetShorthand(name: String) -> String
+            let rpc1 = &s.rpcs[0];
+            assert_eq!(rpc1.name, "GreetShorthand");
+            assert_eq!(rpc1.inputs.len(), 1);
+            assert_eq!(rpc1.inputs[0].name, "name");
+            assert_eq!(rpc1.outputs.len(), 1);
+            assert_eq!(rpc1.outputs[0].name, "result");
+            
+            // Second RPC: GreetShorthandWithBody(name: String) -> String { preconditions: - name != "" }
+            let rpc2 = &s.rpcs[1];
+            assert_eq!(rpc2.name, "GreetShorthandWithBody");
+            assert_eq!(rpc2.inputs.len(), 1);
+            assert_eq!(rpc2.inputs[0].name, "name");
+            assert_eq!(rpc2.outputs.len(), 1);
+            assert_eq!(rpc2.outputs[0].name, "result");
+            assert_eq!(rpc2.preconditions.len(), 1);
+            
+            // Third RPC: GreetNoReturn(name: String)
+            let rpc3 = &s.rpcs[2];
+            assert_eq!(rpc3.name, "GreetNoReturn");
+            assert_eq!(rpc3.inputs.len(), 1);
+            assert_eq!(rpc3.inputs[0].name, "name");
+            assert!(rpc3.outputs.is_empty());
+        } else {
+            panic!("Expected Service declaration");
+        }
+    }
+
+    #[test]
+    fn parse_target_dependencies_decl_test() {
+        let file = parse_ok(
+            r#"module test
+target_dependencies {
+  typescript {
+    "prisma/client": "^5.14.0"
+    dotenv: "^16.4.5"
+  }
+}"#,
+        );
+        assert_eq!(file.declarations.len(), 1);
+        if let Declaration::TargetDependencies(d) = &file.declarations[0] {
+            assert_eq!(d.entries.len(), 1);
+            let entry = &d.entries[0];
+            assert_eq!(entry.target, "typescript");
+            assert_eq!(entry.packages.len(), 2);
+            assert_eq!(entry.packages[0].name, "prisma/client");
+            assert_eq!(entry.packages[0].version, "^5.14.0");
+            assert_eq!(entry.packages[1].name, "dotenv");
+            assert_eq!(entry.packages[1].version, "^16.4.5");
+        } else {
+            panic!("Expected TargetDependencies declaration");
+        }
+    }
+
+    #[test]
     fn error_recovery_continues_parsing() {
         let (file, errors) = parse(
             r#"module test
@@ -2891,130 +3320,6 @@ service Checkout {
         }
     }
 
-    #[test]
-    fn parse_component_decl_test() {
-        let file = parse_ok(
-            r#"module test
-component ProductCard {
-  goal: "Display a product card"
-  props:
-    product: Product
-    currency: CurrencyCode = USD
-  state:
-    quantity: Int = 1
-  events:
-    - add_to_cart(product_id: ProductId, quantity: Quantity)
-  style_guide: "styleguide_v1"
-  visual_spec:
-    - @golden/product_card_desktop.png --viewport 1440x900
-}"#,
-        );
-        assert_eq!(file.declarations.len(), 1);
-        if let Declaration::Component(c) = &file.declarations[0] {
-            assert_eq!(c.name, "ProductCard");
-            assert_eq!(c.goal, Some("Display a product card".to_string()));
-            assert_eq!(c.props.len(), 2);
-            assert_eq!(c.state.len(), 1);
-            assert_eq!(c.events.len(), 1);
-            assert_eq!(c.events[0].name, "add_to_cart");
-            assert_eq!(c.style_guide, Some("styleguide_v1".to_string()));
-            assert_eq!(c.visual_spec.len(), 1);
-        } else {
-            panic!("expected component declaration");
-        }
-    }
-
-    #[test]
-    fn parse_pipeline_decl_test() {
-        let file = parse_ok(
-            r#"module test
-pipeline DailyRevenueReport {
-  goal: "Aggregate daily revenue"
-  source:
-    type: PostgreSQL
-    table: orders
-  stages:
-    - name: "Filter completed orders"
-      filter: status == Completed
-  sink:
-    type: S3
-    path: "s3://reports"
-  schedule: "0 6 * * *"
-}"#,
-        );
-        assert_eq!(file.declarations.len(), 1);
-        if let Declaration::Pipeline(p) = &file.declarations[0] {
-            assert_eq!(p.name, "DailyRevenueReport");
-            assert_eq!(p.goal, Some("Aggregate daily revenue".to_string()));
-            assert_eq!(p.source.len(), 2);
-            assert_eq!(p.stages.len(), 1);
-            assert_eq!(p.stages[0].name, "Filter completed orders");
-            assert_eq!(p.sink.len(), 2);
-            assert_eq!(p.schedule, Some("0 6 * * *".to_string()));
-        } else {
-            panic!("expected pipeline declaration");
-        }
-    }
-
-    #[test]
-    fn parse_workflow_decl_test() {
-        let file = parse_ok(
-            r#"module test
-workflow OrderFulfillment {
-  goal: "Manage order lifecycle"
-  states:
-    Placed
-    PaymentPending
-  transitions:
-    Placed -> PaymentPending:
-      trigger: order_placed
-      action: initiate_payment
-}"#,
-        );
-        assert_eq!(file.declarations.len(), 1);
-        if let Declaration::Workflow(w) = &file.declarations[0] {
-            assert_eq!(w.name, "OrderFulfillment");
-            assert_eq!(w.goal, Some("Manage order lifecycle".to_string()));
-            assert_eq!(w.states.len(), 2);
-            assert_eq!(w.transitions.len(), 1);
-            assert_eq!(w.transitions[0].from, "Placed");
-            assert_eq!(w.transitions[0].to, "PaymentPending");
-            assert_eq!(w.transitions[0].trigger, Some("order_placed".to_string()));
-        } else {
-            panic!("expected workflow declaration");
-        }
-    }
-
-    #[test]
-    fn parse_agent_decl_test() {
-        let file = parse_ok(
-            r#"module test
-agent CustomerSupportAgent {
-  goal: "Handle support inquiries"
-  capabilities:
-    - answer_faq
-  boundaries:
-    - cannot: modify_pricing
-  tools:
-    - OrderLookup(input: OrderId, output: OrderSummary)
-  model:
-    preference: Balanced
-}"#,
-        );
-        assert_eq!(file.declarations.len(), 1);
-        if let Declaration::Agent(a) = &file.declarations[0] {
-            assert_eq!(a.name, "CustomerSupportAgent");
-            assert_eq!(a.goal, Some("Handle support inquiries".to_string()));
-            assert_eq!(a.capabilities.len(), 1);
-            assert_eq!(a.boundaries.len(), 1);
-            assert_eq!(a.boundaries[0].kind, BoundaryKind::Cannot);
-            assert_eq!(a.tools.len(), 1);
-            assert_eq!(a.tools[0].name, "OrderLookup");
-            assert_eq!(a.model.len(), 1);
-        } else {
-            panic!("expected agent declaration");
-        }
-    }
 
     #[test]
     fn parse_schema_decl_test() {
@@ -3055,44 +3360,6 @@ schema ECommerceDB {
         }
     }
 
-    #[test]
-    fn parse_policy_decl_test() {
-        let file = parse_ok(
-            r#"module test
-policy SecurityBaseline {
-  description: "Minimum security requirements"
-  scope: global
-  rules:
-    - all services must:
-        - use TLS 1.3+
-        - apply: PCI_DSS_v4
-}"#,
-        );
-        assert_eq!(file.declarations.len(), 1);
-        if let Declaration::Policy(p) = &file.declarations[0] {
-            assert_eq!(p.name, "SecurityBaseline");
-            assert_eq!(
-                p.description,
-                Some("Minimum security requirements".to_string())
-            );
-            assert_eq!(p.scope, Some("global".to_string()));
-            assert_eq!(p.rules.len(), 1);
-            assert_eq!(p.rules[0].condition, "all services must");
-            assert_eq!(p.rules[0].clauses.len(), 2);
-            if let PolicyClause::Simple(text, _) = &p.rules[0].clauses[0] {
-                assert_eq!(text, "use TLS 1.3+");
-            } else {
-                panic!("expected simple clause");
-            }
-            if let PolicyClause::Action { verb, .. } = &p.rules[0].clauses[1] {
-                assert_eq!(verb, "apply");
-            } else {
-                panic!("expected action clause");
-            }
-        } else {
-            panic!("expected policy declaration");
-        }
-    }
 
     #[test]
     fn parse_union_intersection_option_test() {
@@ -3252,4 +3519,149 @@ service Bank {
             panic!("expected service declaration");
         }
     }
+
+    #[test]
+    fn parse_doc_comments_test() {
+        let file = parse_ok(
+            r#"module test
+
+/// This is a doc comment
+/// for GreetService
+service GreetService {
+  /// This is a doc comment
+  /// for Greet method
+  rpc Greet(name: String) -> String
 }
+
+/// Doc comment for MyType
+type MyType = String
+
+schema MySchema {
+  /// Doc comment for MyEntity
+  entity MyEntity {
+    /// Doc comment for id field
+    id: UUID @primary
+  }
+}"#,
+        );
+        assert_eq!(file.declarations.len(), 3);
+        
+        // 1. Service GreetService and RPC Greet
+        if let Declaration::Service(s) = &file.declarations[0] {
+            assert_eq!(s.name, "GreetService");
+            assert_eq!(s.doc_comment, Some("This is a doc comment\nfor GreetService".to_string()));
+            
+            let rpc = &s.rpcs[0];
+            assert_eq!(rpc.name, "Greet");
+            assert_eq!(rpc.doc_comment, Some("This is a doc comment\nfor Greet method".to_string()));
+        } else {
+            panic!("Expected Service declaration");
+        }
+        
+        // 2. Type MyType
+        if let Declaration::Type(t) = &file.declarations[1] {
+            assert_eq!(t.name, "MyType");
+            assert_eq!(t.doc_comment, Some("Doc comment for MyType".to_string()));
+        } else {
+            panic!("Expected Type declaration");
+        }
+        
+        // 3. Schema MySchema, Entity MyEntity, Field id
+        if let Declaration::Schema(s) = &file.declarations[2] {
+            assert_eq!(s.name, "MySchema");
+            assert_eq!(s.entities.len(), 1);
+            
+            let entity = &s.entities[0];
+            assert_eq!(entity.name, "MyEntity");
+            assert_eq!(entity.doc_comment, Some("Doc comment for MyEntity".to_string()));
+            
+            let field = &entity.fields[0];
+            assert_eq!(field.name, "id");
+            assert_eq!(field.doc_comment, Some("Doc comment for id field".to_string()));
+        } else {
+            panic!("Expected Schema declaration");
+        }
+    }
+
+    #[test]
+    fn parse_service_dependencies_and_policies_test() {
+        let file = parse_ok(
+            r#"module test
+service Checkout {
+  dependencies:
+    - InternalStorage (DB)
+    - LoyaltyService (gRPC API)
+  policies:
+    - enrich_user_loyalty:
+        action: "enrich"
+        rule: "vip"
+  invariants:
+    - money_safety: "safe"
+}"#,
+        );
+        assert_eq!(file.declarations.len(), 1);
+        if let Declaration::Service(s) = &file.declarations[0] {
+            assert_eq!(s.name, "Checkout");
+            assert_eq!(s.dependencies.len(), 2);
+            assert_eq!(s.dependencies[0].name, "InternalStorage");
+            assert_eq!(s.dependencies[0].notes, Some("DB".to_string()));
+            assert_eq!(s.dependencies[1].name, "LoyaltyService");
+            assert_eq!(s.dependencies[1].notes, Some("gRPC API".to_string()));
+            
+            assert_eq!(s.policies.len(), 1);
+            assert_eq!(s.policies[0].name, "enrich_user_loyalty");
+            assert_eq!(s.policies[0].entries.len(), 2);
+            assert_eq!(s.policies[0].entries[0].key, "action");
+            assert_eq!(s.policies[0].entries[1].key, "rule");
+
+            assert_eq!(s.invariants.len(), 1);
+            if let Expression::BinaryOp { left, op, right, .. } = &s.invariants[0] {
+                assert_eq!(op, &BinaryOperator::Eq);
+                if let Expression::Identifier(name, _) = &**left {
+                    assert_eq!(name, "money_safety");
+                } else {
+                    panic!("expected identifier");
+                }
+                if let Expression::Literal(Literal::String(val)) = &**right {
+                    assert_eq!(val, "safe");
+                } else {
+                    panic!("expected string literal");
+                }
+            } else {
+                panic!("expected binary op for labeled invariant");
+            }
+        } else {
+            panic!("expected service declaration");
+        }
+    }
+
+    #[test]
+    fn parse_orchestrator_workflow_test() {
+        let file = parse_ok(
+            r#"module test
+orchestrator BookingFlow {
+  states: [ Created, Paid, Cancelled ]
+  transitions:
+    - Created -> Paid -> Cancelled [on: Timeout or UserAbort]
+}"#,
+        );
+        assert_eq!(file.declarations.len(), 1);
+        if let Declaration::Workflow(w) = &file.declarations[0] {
+            assert_eq!(w.name, "BookingFlow");
+            assert_eq!(w.states, vec!["Created", "Paid", "Cancelled"]);
+            assert_eq!(w.transitions.len(), 2);
+            
+            assert_eq!(w.transitions[0].from, "Created");
+            assert_eq!(w.transitions[0].to, "Paid");
+            assert_eq!(w.transitions[0].trigger, Some("Timeout or UserAbort".to_string()));
+            
+            assert_eq!(w.transitions[1].from, "Paid");
+            assert_eq!(w.transitions[1].to, "Cancelled");
+            assert_eq!(w.transitions[1].trigger, Some("Timeout or UserAbort".to_string()));
+        } else {
+            panic!("expected workflow declaration");
+        }
+    }
+}
+
+

@@ -5,6 +5,7 @@ on:
     branches: [main, feat/*]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -19,6 +20,11 @@ jobs:
       - name: Setup OmniLang
         uses: ./.github/actions/setup-omni
 
+      - name: Install Z3 SMT Solver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y z3
+
       - name: Format check
         run: cargo fmt --all -- --check
 
@@ -27,6 +33,44 @@ jobs:
 
       - name: Run tests
         run: cargo test --workspace
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: runtime/package-lock.json
+
+      - name: Install Runtime dependencies
+        run: npm ci --prefix runtime
+
+      - name: Build Runtime
+        run: npm run build --prefix runtime
+
+      - name: Run Runtime tests with coverage
+        run: npm test --prefix runtime -- --coverage
+
+      - name: Run mock E2E build verification
+        run: |
+          OMNI_MOCK_LLM=true cargo run --bin omni -- build examples/stabilization_test.schema.omni --target typescript
+          OMNI_MOCK_LLM=true cargo run --bin omni -- build examples/hybrid_billing.omni --target typescript
+
+      - name: Run E2E Integration Test with Real LLM (Conditional)
+        if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          NODE_PATH=runtime/node_modules npx ts-node --project runtime/tsconfig.json scripts/test-real-llm.ts
+
+      - name: Verify examples with omni check
+        run: |
+          cargo run --bin omni -- check examples/checkout.omni
+          cargo run --bin omni -- check examples/self_correction.omni
+          cargo run --bin omni -- check examples/simple_greet.omni
+          cargo run --bin omni -- check examples/stabilization_test.schema.omni
+          cargo run --bin omni -- check examples/booking_flow.omni
+          cargo run --bin omni -- check examples/hybrid_billing.omni
+
 
       - name: Check .omni specs (if any)
         run: |

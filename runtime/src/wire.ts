@@ -12,49 +12,7 @@
  * - LLM-native: every major model handles JSON natively
  */
 
-// ── Core types ───────────────────────────────────────────
-
-export interface WireSpecIR {
-  module_path: string[];
-  types: WireType[];
-  services: WireService[];
-  dependencies: WireDependency[];
-  stats: WireStats;
-}
-
-export interface WireType {
-  name: string;
-  kind: string;
-  field_count: number;
-  generator?: { format?: string };
-}
-
-export interface WireService {
-  name: string;
-  goal?: string;
-  rpc_names: string[];
-  rpc_count: number;
-  constraint_names: string[];
-  constraint_count: number;
-  metric_names: string[];
-  metric_count: number;
-  test_count: number;
-}
-
-export interface WireDependency {
-  from: string;
-  to: string;
-  kind: string;
-}
-
-export interface WireStats {
-  type_count: number;
-  service_count: number;
-  rpc_count: number;
-  test_count: number;
-  metric_count: number;
-  constraint_count: number;
-}
+import { SpecIR } from "./types";
 
 // ── Serialize: SpecIR → minified JSON string ─────────────
 
@@ -70,10 +28,10 @@ export function serializeIR(ir: any): string {
  * Deserialize a minified JSON string back to Spec IR.
  * Validates the structure and throws on malformed input.
  */
-export function deserializeIR(json: string): WireSpecIR {
+export function deserializeIR(json: string): SpecIR {
   const parsed = JSON.parse(json);
   validateIR(parsed);
-  return parsed as WireSpecIR;
+  return parsed as SpecIR;
 }
 
 // ── Validation ───────────────────────────────────────────

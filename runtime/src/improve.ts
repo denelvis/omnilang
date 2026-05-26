@@ -83,8 +83,14 @@ export class AgentOptimizer {
 
     if (errorsToAnalyze.length > 0) {
       instructions.push("\n### IMPORTANT: LLM Prompt Adaptations from past generation retries:");
+      instructions.push("The previous compilation/testing attempts failed with the following diagnostics. You MUST fix these errors in your new generation:");
       
       const uniqueErrors = Array.from(new Set(errorsToAnalyze));
+      for (const err of uniqueErrors) {
+        instructions.push(`\nError Diagnostic:\n\`\`\`\n${err}\n\`\`\``);
+      }
+      
+      instructions.push("\nGeneral Guidelines based on analysis:");
       for (const err of uniqueErrors) {
         const lowerErr = err.toLowerCase();
         if (lowerErr.includes("precondition") || lowerErr.includes("pre-condition") || lowerErr.includes("assert") || lowerErr.includes("constraint")) {
@@ -115,16 +121,7 @@ export class AgentOptimizer {
  */
 export class StrategyABTester {
   public static route(serviceName: string): { strategy: string; model: string } {
-    // Deterministic split based on service name
-    const charCodeSum = serviceName.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const group = charCodeSum % 2 === 0 ? "B" : "A";
-
-    if (group === "B") {
-      // Group B: Sonnet-4 + Z3 formal checking (Premium/Balanced)
-      return { strategy: "Balanced Escalation", model: "claude-3-5-sonnet-20241022" };
-    } else {
-      // Group A: Haiku-only strategy (Cheap)
-      return { strategy: "Haiku Baseline", model: "claude-3-haiku-20240307" };
-    }
+    const model = process.env.OMNI_MODEL || "claude-3-5-sonnet-20241022";
+    return { strategy: "Standard Strategy", model };
   }
 }

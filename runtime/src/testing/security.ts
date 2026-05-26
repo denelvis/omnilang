@@ -11,6 +11,10 @@ export interface SecurityIssue {
   line: number;
 }
 
+/**
+ * @deprecated Use real security scanning tools (e.g., Semgrep, OWASP dependency-check).
+ * @internal This is a mock simulation layer and should not be used in production.
+ */
 export class SecurityRunner {
   private evidenceDir: string;
 

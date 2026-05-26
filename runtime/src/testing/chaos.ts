@@ -16,6 +16,10 @@ export interface ChaosTestResult {
   message: string;
 }
 
+/**
+ * @deprecated Use real chaos-testing frameworks.
+ * @internal This is a mock simulation layer and should not be used in production.
+ */
 export class ChaosRunner {
   public injectFault(spec: ChaosSpec): ChaosTestResult {
     console.log(`[Chaos Engineering] Injecting fault: ${pc.red(spec.fault.toUpperCase())} on service: ${pc.cyan(spec.targetService)}`);

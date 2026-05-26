@@ -1,6 +1,6 @@
 //! Constraint validation: detect conflicts and validate references.
 
-use omni_parser::ast::{Declaration, SourceFile};
+use omni_parser::ast::{Declaration, SourceFile, Expression, Literal};
 
 use crate::{Diagnostic, DiagnosticKind};
 
@@ -32,6 +32,20 @@ pub fn validate_constraints(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>
                 });
             }
 
+            // Check for natural language invariants
+            for inv in &s.invariants {
+                if let Expression::Literal(Literal::String(text)) = inv {
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Warning,
+                        message: format!(
+                            "Invariant '{}' in service '{}' is a natural language constraint and cannot be statically verified. Consider formalizing it as a mathematical expression.",
+                            text, s.name
+                        ),
+                        span: s.span,
+                    });
+                }
+            }
+
             // Check for conflicting constraints within a service
             let constraint_names: Vec<&str> =
                 s.constraints.iter().map(|c| c.name.as_str()).collect();
@@ -50,6 +64,34 @@ pub fn validate_constraints(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>
 
             // Check RPC-level constraints
             for rpc in &s.rpcs {
+                // Check for natural language preconditions
+                for pre in &rpc.preconditions {
+                    if let Expression::Literal(Literal::String(text)) = pre {
+                        diagnostics.push(Diagnostic {
+                            kind: DiagnosticKind::Warning,
+                            message: format!(
+                                "Precondition '{}' in RPC '{}.{}' is a natural language constraint and cannot be statically verified. Consider formalizing it as a mathematical expression.",
+                                text, s.name, rpc.name
+                            ),
+                            span: rpc.span,
+                        });
+                    }
+                }
+
+                // Check for natural language postconditions
+                for post in &rpc.postconditions {
+                    if let Expression::Literal(Literal::String(text)) = post {
+                        diagnostics.push(Diagnostic {
+                            kind: DiagnosticKind::Warning,
+                            message: format!(
+                                "Postcondition '{}' in RPC '{}.{}' is a natural language constraint and cannot be statically verified. Consider formalizing it as a mathematical expression.",
+                                text, s.name, rpc.name
+                            ),
+                            span: rpc.span,
+                        });
+                    }
+                }
+
                 if rpc.tests.is_empty() {
                     diagnostics.push(Diagnostic {
                         kind: DiagnosticKind::Info,
@@ -122,5 +164,27 @@ service API {
         );
         // Should only have info-level, no errors or warnings
         assert!(diags.iter().all(|d| d.kind != DiagnosticKind::Error));
+    }
+
+    #[test]
+    fn natural_language_constraints_warn() {
+        let diags = parse_and_validate(
+            r#"module test
+service API {
+  goal: "Test"
+  invariants:
+    - "Service must always be active"
+  rpc Greet(name: String) -> String {
+    preconditions:
+      - "name must not be empty"
+    postconditions:
+      - "return message contains name"
+  }
+}"#,
+        );
+        let warnings: Vec<_> = diags.iter().filter(|d| d.kind == DiagnosticKind::Warning).collect();
+        assert!(warnings.iter().any(|d| d.message.contains("Invariant 'Service must always be active'")));
+        assert!(warnings.iter().any(|d| d.message.contains("Precondition 'name must not be empty'")));
+        assert!(warnings.iter().any(|d| d.message.contains("Postcondition 'return message contains name'")));
     }
 }

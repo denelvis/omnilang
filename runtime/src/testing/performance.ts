@@ -28,6 +28,10 @@ export interface BenchmarkResult {
   flamegraphPath?: string;
 }
 
+/**
+ * @deprecated Use real benchmarking tools (e.g., k6, autocannon).
+ * @internal This is a mock simulation layer and should not be used in production.
+ */
 export class PerformanceRunner {
   private evidenceDir: string;
 

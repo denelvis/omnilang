@@ -1,3 +1,5 @@
+import { SpecIR } from "./types";
+
 /**
  * Budget System — token tracking, cost accumulation, and budget enforcement.
  *
@@ -28,11 +30,29 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     inputPer1kTokens: 0.003,
     outputPer1kTokens: 0.015,
   },
+  "claude-3-5-sonnet-20241022": {
+    tier: "Balanced",
+    model: "claude-3-5-sonnet-20241022",
+    inputPer1kTokens: 0.003,
+    outputPer1kTokens: 0.015,
+  },
   "claude-opus-4-20250514": {
     tier: "SmartExpensive",
     model: "claude-opus-4-20250514",
     inputPer1kTokens: 0.015,
     outputPer1kTokens: 0.075,
+  },
+  "qwen2.5-coder:7b": {
+    tier: "CheapFast",
+    model: "qwen2.5-coder:7b",
+    inputPer1kTokens: 0.0,
+    outputPer1kTokens: 0.0,
+  },
+  "qwen2.5-coder:latest": {
+    tier: "CheapFast",
+    model: "qwen2.5-coder:latest",
+    inputPer1kTokens: 0.0,
+    outputPer1kTokens: 0.0,
   },
 };
 
@@ -218,13 +238,13 @@ export class BudgetTracker {
 
 /** Estimate the cost of building from a spec IR */
 export function estimateBuildCost(
-  ir: any,
+  ir: SpecIR,
   tier: ModelTier = "Balanced"
 ): { estimatedCost: number; estimatedTokens: number; model: string } {
   const serviceCount = ir.services?.length || 0;
-  const rpcCount = ir.stats?.total_rpcs || 0;
-  const typeCount = ir.stats?.total_types || 0;
-  const testCount = ir.stats?.total_tests || 0;
+  const rpcCount = ir.stats?.rpc_count || 0;
+  const typeCount = ir.stats?.type_count || 0;
+  const testCount = ir.stats?.test_count || 0;
 
   // Rough estimates: ~2K tokens input per service, ~4K output per service
   const tokensPerService = 2000 + rpcCount * 500;

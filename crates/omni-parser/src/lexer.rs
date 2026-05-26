@@ -477,13 +477,13 @@ mod tests {
         assert_eq!(
             kinds,
             vec![
-                TokenKind::KwComponent,
-                TokenKind::KwPipeline,
+                TokenKind::Ident,
+                TokenKind::Ident,
                 TokenKind::KwWorkflow,
-                TokenKind::KwAgent,
+                TokenKind::Ident,
                 TokenKind::KwSchema,
                 TokenKind::KwPolicy,
-                TokenKind::KwContract,
+                TokenKind::Ident,
                 TokenKind::KwConstraint,
                 TokenKind::KwBudget,
                 TokenKind::KwEvidence,
@@ -507,6 +507,7 @@ mod tests {
             ]
         );
     }
+
 
     #[test]
     fn test_keywords() {

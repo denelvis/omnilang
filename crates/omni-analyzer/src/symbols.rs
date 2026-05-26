@@ -370,6 +370,7 @@ pub fn build_symbol_table(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) 
                     },
                 );
             }
+            Declaration::TargetDependencies(_) => {}
         }
     }
 
@@ -415,22 +416,5 @@ mod tests {
         assert!(diags.is_empty());
         assert!(table.contains("Checkout"));
         assert_eq!(table.get("Checkout").unwrap().kind, SymbolKind::Service);
-    }
-
-    #[test]
-    fn component_and_workflow_symbols_registered() {
-        let (table, diags) =
-            parse_and_build("module test\ncomponent ProductCard {}\nworkflow OrderFulfillment {}");
-        assert!(diags.is_empty());
-        assert!(table.contains("ProductCard"));
-        assert!(table.contains("OrderFulfillment"));
-        assert_eq!(
-            table.get("ProductCard").unwrap().kind,
-            SymbolKind::Component
-        );
-        assert_eq!(
-            table.get("OrderFulfillment").unwrap().kind,
-            SymbolKind::Workflow
-        );
     }
 }

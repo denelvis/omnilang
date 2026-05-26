@@ -1,0 +1,19 @@
+module acme.stabilization.test
+
+type UserId = String
+
+schema UserDB {
+  goal: "Store and manage user account details"
+  target: postgresql
+
+  /// User account entity
+  entity User {
+    /// Unique primary key
+    id: UserId @primary
+    /// User name for profile
+    name: String @indexed
+  }
+  
+  relations:
+    - User has_many AccountSettings
+}

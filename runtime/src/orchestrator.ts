@@ -2,11 +2,20 @@ import * as fs from "fs";
 import * as path from "path";
 import { spawnSync } from "child_process";
 import pc from "picocolors";
-import { AnthropicProvider } from "./providers/anthropic";
+import { getLLMProvider } from "./providers";
 import { CodeGenAgent } from "./agents/codegen";
 import { VerificationRunner } from "./verify";
 import { AgentOptimizer, StrategyABTester } from "./improve";
-import { getSystemPrompt, getUserPrompt } from "./prompts/codegen";
+import { getSystemPrompt, getUserPrompt, formatTypeDecl } from "./prompts/codegen";
+import { SpecIR } from "./types";
+import { SchemaGeneratorRegistry } from "./plugins/base";
+import { PrismaSchemaGenerator } from "./plugins/prisma";
+import { SqlSchemaGenerator } from "./plugins/sql";
+import { WorkflowGenerator } from "./testing/workflows";
+
+// Register default schema generator plugins
+SchemaGeneratorRegistry.register(new PrismaSchemaGenerator());
+SchemaGeneratorRegistry.register(new SqlSchemaGenerator());
 
 export interface OrchestratorOptions {
   irPath: string;
@@ -24,6 +33,9 @@ export class Orchestrator {
   constructor(options: OrchestratorOptions) {
     this.irPath = options.irPath;
     this.outputDir = path.resolve(options.outputDir);
+    if (options.target !== "typescript") {
+      throw new Error(`Target '${options.target}' is not supported. Only 'typescript' is supported.`);
+    }
     this.target = options.target;
     this.fullStack = !!options.fullStack;
   }
@@ -31,14 +43,14 @@ export class Orchestrator {
   public async run(): Promise<void> {
     // 1. Load Spec IR JSON
     const irContent = fs.readFileSync(this.irPath, "utf8");
-    const ir = JSON.parse(irContent);
+    const ir: SpecIR = JSON.parse(irContent);
 
     // 2. Initialize target directory structure
     console.log(pc.yellow(`   Initializing build directory at: ${this.outputDir}`));
-    this.initializeBuildDirectory();
+    await this.initializeBuildDirectory(ir);
 
     // 3. Initialize LLM Provider and CodeGen Agent
-    const provider = new AnthropicProvider();
+    const provider = getLLMProvider();
     const agent = new CodeGenAgent(provider);
     const optimizer = new AgentOptimizer();
 
@@ -70,7 +82,7 @@ export class Orchestrator {
         }
 
         const optimizedInstructions = optimizer.getOptimizedInstructions(serviceName, errors);
-        const result = await agent.generateService(serviceName, ir, this.outputDir, this.target, optimizedInstructions);
+        const result = await agent.generateService(serviceName, ir, this.outputDir, this.target, optimizedInstructions, model);
 
         // Run Verification to check if compiler & tests pass
         const verifier = new VerificationRunner(this.outputDir, this.target);
@@ -113,6 +125,64 @@ export class Orchestrator {
       }
     }
 
+    // 4.6. Generate code for each workflow / orchestrator in the spec IR
+    const workflowDecls = ir.source_file.declarations
+      .filter((d): d is { Workflow: any } => "Workflow" in d)
+      .map((d) => d.Workflow);
+
+    if (workflowDecls.length > 0) {
+      console.log(pc.yellow(`   Executing workflow generation flow...`));
+      const generator = new WorkflowGenerator();
+
+      for (const w of workflowDecls) {
+        // Map AST WorkflowDecl to WorkflowConfig
+        const transitions = w.transitions.map((t: any) => {
+          let guardStr: string | undefined = undefined;
+          if (t.guard) {
+            guardStr = JSON.stringify(t.guard);
+          }
+          return {
+            from: t.from,
+            to: t.to,
+            trigger: t.trigger || undefined,
+            guard: guardStr,
+            actions: t.actions || []
+          };
+        });
+
+        const config = {
+          name: w.name,
+          states: w.states || [],
+          transitions
+        };
+
+        const stateMachineCode = generator.generateStateMachine(config);
+        
+        const smPath = path.join(this.outputDir, "src", "services", `${w.name}StateMachine.ts`);
+        fs.writeFileSync(smPath, stateMachineCode, "utf8");
+        console.log(`     ${pc.green("✓")} Wrote src/services/${w.name}StateMachine.ts`);
+
+        const testPath = path.join(this.outputDir, "tests", `${w.name}StateMachine.test.ts`);
+        const initialSem = w.states[0] || "Init";
+        const testCode = `import { ${w.name}StateMachine, State } from "../src/services/${w.name}StateMachine";
+
+describe("${w.name}StateMachine", () => {
+  let sm: ${w.name}StateMachine;
+
+  beforeEach(() => {
+    sm = new ${w.name}StateMachine();
+  });
+
+  test("should initialize in state ${initialSem}", () => {
+    expect(sm.getCurrentState()).toBe(State.${initialSem});
+  });
+});
+`;
+        fs.writeFileSync(testPath, testCode, "utf8");
+        console.log(`     ${pc.green("✓")} Wrote tests/${w.name}StateMachine.test.ts`);
+      }
+    }
+
     // 5. Run Verification
     console.log(pc.yellow(`   Running verification tests...`));
     const verifier = new VerificationRunner(this.outputDir, this.target);
@@ -124,11 +194,11 @@ export class Orchestrator {
 
       if (this.fullStack) {
         console.log(pc.cyan("\n# Full-stack app: API + UI + data pipeline"));
-        console.log(pc.cyan("# с visual tests, performance SLOs, security constraints"));
-        console.log(`Visual: screenshot comparison ${pc.green("✓")}`);
-        console.log(`Performance: p95 < 200ms ${pc.green("✓")}`);
-        console.log(`Security: OWASP Top 10 ${pc.green("✓")}`);
-        console.log(`Chaos: survives service crash ${pc.green("✓")}`);
+        console.log(pc.cyan("# with visual tests, performance SLOs, security constraints"));
+        console.log(`Visual: bypassed (deprecated mock)`);
+        console.log(`Performance: bypassed (deprecated mock)`);
+        console.log(`Security: bypassed (deprecated mock)`);
+        console.log(`Chaos: bypassed (deprecated mock)`);
         console.log("Confidence: High on all services");
       }
     } else {
@@ -145,31 +215,40 @@ export class Orchestrator {
     }
   }
 
-  private initializeBuildDirectory(): void {
-    switch (this.target) {
-      case "rust":
-        this.initializeRustDirectory();
-        break;
-      case "python":
-        this.initializePythonDirectory();
-        break;
-      case "typescript":
-      default:
-        this.initializeTypeScriptDirectory();
-        break;
-    }
+  private async initializeBuildDirectory(ir: SpecIR): Promise<void> {
+    await this.initializeTypeScriptDirectory(ir);
   }
 
-  private initializeTypeScriptDirectory(): void {
+  private async initializeTypeScriptDirectory(ir: SpecIR): Promise<void> {
     // 1. Create directory structure
     fs.mkdirSync(this.outputDir, { recursive: true });
-    fs.mkdirSync(path.join(this.outputDir, "src", "services"), { recursive: true });
-    fs.mkdirSync(path.join(this.outputDir, "tests"), { recursive: true });
 
-    // 2. Write package.json
+    // Ensure services and tests directories exist
+    const servicesDir = path.join(this.outputDir, "src", "services");
+    fs.mkdirSync(servicesDir, { recursive: true });
+
+    const testsDir = path.join(this.outputDir, "tests");
+    fs.mkdirSync(testsDir, { recursive: true });
+
+    // 2. Write/Update package.json
     const packageJsonPath = path.join(this.outputDir, "package.json");
-    if (!fs.existsSync(packageJsonPath)) {
-      const packageJson = {
+    let packageJson: any;
+
+    if (fs.existsSync(packageJsonPath)) {
+      try {
+        packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+      } catch (e) {
+        packageJson = {
+          name: "omni-build",
+          version: "0.1.0",
+          private: true,
+          scripts: { "test": "jest" },
+          dependencies: {},
+          devDependencies: {}
+        };
+      }
+    } else {
+      packageJson = {
         name: "omni-build",
         version: "0.1.0",
         private: true,
@@ -183,9 +262,41 @@ export class Orchestrator {
           "ts-jest": "^29.2.5",
           "@types/jest": "^29.5.14",
           "@types/node": "^20.17.6",
-          "fast-check": "^3.22.0"
+          "fast-check": "^3.22.0",
+          "react": "^18.3.1",
+          "@types/react": "^18.3.1"
         }
       };
+    }
+
+    if (!packageJson.dependencies) {
+      packageJson.dependencies = {};
+    }
+    if (!packageJson.devDependencies) {
+      packageJson.devDependencies = {};
+    }
+
+    // Merge target dependencies from IR
+    let hasChanges = false;
+    if (ir.source_file && ir.source_file.declarations) {
+      for (const decl of ir.source_file.declarations) {
+        if ("TargetDependencies" in decl) {
+          const targetDeps = decl.TargetDependencies;
+          for (const entry of targetDeps.entries) {
+            if (entry.target === this.target) {
+              for (const pkg of entry.packages) {
+                if (packageJson.dependencies[pkg.name] !== pkg.version) {
+                  packageJson.dependencies[pkg.name] = pkg.version;
+                  hasChanges = true;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (hasChanges || !fs.existsSync(packageJsonPath)) {
       fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
     }
 
@@ -202,7 +313,8 @@ export class Orchestrator {
           strict: true,
           esModuleInterop: true,
           skipLibCheck: true,
-          forceConsistentCasingInFileNames: true
+          forceConsistentCasingInFileNames: true,
+          jsx: "react-jsx"
         },
         include: ["src/**/*", "tests/**/*"]
       };
@@ -221,10 +333,44 @@ export class Orchestrator {
       fs.writeFileSync(jestConfigPath, jestConfig);
     }
 
-    // 5. Run npm install if node_modules doesn't exist
+    // 4.5. Generate src/types.ts file containing custom spec types
+    const typesDir = path.join(this.outputDir, "src");
+    fs.mkdirSync(typesDir, { recursive: true });
+    const typesPath = path.join(typesDir, "types.ts");
+
+    const typeDecls = ir.source_file.declarations
+      .filter((d): d is { Type: any } => "Type" in d)
+      .map((d) => formatTypeDecl(d.Type))
+      .join("\n\n");
+
+    const typesContent = `// Generated by OmniLang. Do not edit manually.\n\n${typeDecls}\n`;
+    fs.writeFileSync(typesPath, typesContent, "utf8");
+
+    // 5. Generate database schema if present in IR using the resolved plugin
+    let schemaDecl = null;
+    if (ir.source_file && ir.source_file.declarations) {
+      for (const decl of ir.source_file.declarations) {
+        if ("Schema" in decl) {
+          schemaDecl = decl.Schema;
+          break;
+        }
+      }
+    }
+
+    if (schemaDecl) {
+      const target = schemaDecl.target || "postgresql";
+      const plugin = SchemaGeneratorRegistry.getPluginForTarget(target);
+      if (plugin) {
+        await plugin.generate(ir, this.outputDir, target);
+      } else {
+        console.warn(pc.yellow(`   Warning: No database schema generator found for target: ${target}`));
+      }
+    }
+
+    // 6. Run npm install if node_modules doesn't exist or dependencies were modified
     const nodeModulesPath = path.join(this.outputDir, "node_modules");
-    if (!fs.existsSync(nodeModulesPath)) {
-      console.log(pc.yellow(`   Installing packages in ${this.outputDir}...`));
+    if (!fs.existsSync(nodeModulesPath) || hasChanges) {
+      console.log(pc.yellow(`   Installing/updating packages in ${this.outputDir}...`));
       const res = spawnSync("npm", ["install"], {
         cwd: this.outputDir,
         stdio: "inherit",
@@ -233,88 +379,6 @@ export class Orchestrator {
       if (res.status !== 0) {
         throw new Error(`npm install failed in ${this.outputDir} with exit code ${res.status}`);
       }
-    }
-  }
-
-  private initializeRustDirectory(): void {
-    // 1. Create directory structure
-    fs.mkdirSync(this.outputDir, { recursive: true });
-    fs.mkdirSync(path.join(this.outputDir, "src", "services"), { recursive: true });
-    fs.mkdirSync(path.join(this.outputDir, "tests"), { recursive: true });
-
-    // 2. Write Cargo.toml
-    const cargoTomlPath = path.join(this.outputDir, "Cargo.toml");
-    if (!fs.existsSync(cargoTomlPath)) {
-      const cargoToml = `[package]
-name = "omni-build"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-thiserror = "2"
-
-[dev-dependencies]
-proptest = "1"
-`;
-      fs.writeFileSync(cargoTomlPath, cargoToml);
-    }
-
-    // 3. Write src/lib.rs if it doesn't exist
-    const libRsPath = path.join(this.outputDir, "src", "lib.rs");
-    if (!fs.existsSync(libRsPath)) {
-      fs.writeFileSync(libRsPath, "pub mod services;\n");
-    }
-
-    // 4. Write src/services/mod.rs if it doesn't exist
-    const modRsPath = path.join(this.outputDir, "src", "services", "mod.rs");
-    if (!fs.existsSync(modRsPath)) {
-      fs.writeFileSync(modRsPath, "// Generated service modules\n");
-    }
-  }
-
-  private initializePythonDirectory(): void {
-    // 1. Create directory structure
-    fs.mkdirSync(this.outputDir, { recursive: true });
-    fs.mkdirSync(path.join(this.outputDir, "app", "services"), { recursive: true });
-    fs.mkdirSync(path.join(this.outputDir, "tests"), { recursive: true });
-
-    // 2. Write requirements.txt
-    const reqPath = path.join(this.outputDir, "requirements.txt");
-    if (!fs.existsSync(reqPath)) {
-      const requirements = `pytest>=8.0
-hypothesis>=6.0
-mypy>=1.0
-pydantic>=2.0
-`;
-      fs.writeFileSync(reqPath, requirements);
-    }
-
-    // 3. Write __init__.py files
-    const appInitPath = path.join(this.outputDir, "app", "__init__.py");
-    if (!fs.existsSync(appInitPath)) {
-      fs.writeFileSync(appInitPath, "");
-    }
-    const servicesInitPath = path.join(this.outputDir, "app", "services", "__init__.py");
-    if (!fs.existsSync(servicesInitPath)) {
-      fs.writeFileSync(servicesInitPath, "");
-    }
-    const testsInitPath = path.join(this.outputDir, "tests", "__init__.py");
-    if (!fs.existsSync(testsInitPath)) {
-      fs.writeFileSync(testsInitPath, "");
-    }
-
-    // 4. Write pyproject.toml
-    const pyprojectPath = path.join(this.outputDir, "pyproject.toml");
-    if (!fs.existsSync(pyprojectPath)) {
-      const pyproject = `[tool.pytest.ini_options]
-testpaths = ["tests"]
-
-[tool.mypy]
-strict = true
-`;
-      fs.writeFileSync(pyprojectPath, pyproject);
     }
   }
 }

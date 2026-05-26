@@ -1,0 +1,11 @@
+[package]
+name = "omni-lang"
+version = "0.10.0"
+description = "OmniLang — the specification language for AI-native development"
+
+[budget]
+max_total = 10.0
+
+[target.typescript.dependencies]
+"@prisma/client" = "^5.14.0"
+"lodash" = "^4.17.21"

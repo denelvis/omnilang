@@ -16,6 +16,10 @@ export interface VisualSpec {
   goldenDir?: string;
 }
 
+/**
+ * @deprecated Use real visual regression testing tools (e.g., Playwright, BackstopJS).
+ * @internal This is a mock simulation layer and should not be used in production.
+ */
 export class VisualTestRunner {
   private goldenDir: string;
 

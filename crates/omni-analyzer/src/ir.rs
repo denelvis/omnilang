@@ -10,7 +10,7 @@ use crate::type_mapping::TypeMapping;
 
 /// Validated Specification IR — the output of the analysis phase.
 /// This is consumed by the orchestrator/codegen pipeline.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct SpecIR {
     /// Module path: `["acme", "payments", "checkout"]`
     pub module_path: Vec<String>,
@@ -28,7 +28,7 @@ pub struct SpecIR {
     pub stats: SpecStats,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct TypeDef {
     pub name: String,
     pub kind: String, // "enum", "struct", "refined", "alias"
@@ -41,7 +41,7 @@ pub struct TypeDef {
 
 /// Configuration for generating constraint-aware arbitrary values.
 /// Extracted from refined type constraints to drive property-based test generators.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct GeneratorConfig {
     /// Minimum value for numeric ranges (from `range: [min, max]`)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -63,7 +63,7 @@ pub struct GeneratorConfig {
     pub precision: Option<usize>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct ServiceDef {
     pub name: String,
     pub goal: Option<String>,
@@ -79,7 +79,7 @@ pub struct ServiceDef {
     pub evidence: Vec<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct SpecStats {
     pub type_count: usize,
     pub service_count: usize,
@@ -195,6 +195,7 @@ pub fn build_spec_ir(
                 total_constraints += m.constraints.len();
                 total_tests += m.tests.len();
             }
+            Declaration::TargetDependencies(_) => {}
         }
     }
 
