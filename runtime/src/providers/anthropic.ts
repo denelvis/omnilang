@@ -37,6 +37,13 @@ export class AnthropicProvider implements LLMProvider {
       messages: [{ role: "user", content: userPrompt }],
     });
 
+    const inputTokens = response.usage?.input_tokens || 0;
+    const outputTokens = response.usage?.output_tokens || 0;
+    const cost = (inputTokens / 1_000_000) * 3.0 + (outputTokens / 1_000_000) * 15.0;
+    console.log(pc.green(`   [LLM Telemetry] Model: ${selectedModel}`));
+    console.log(pc.green(`   [LLM Telemetry] Tokens: Input: ${inputTokens}, Output: ${outputTokens}`));
+    console.log(pc.green(`   [LLM Telemetry] Estimated Cost: $${cost.toFixed(5)}`));
+
     const content = response.content[0];
     if (content.type !== "text") {
       throw new Error("Unexpected non-text response from Claude API.");

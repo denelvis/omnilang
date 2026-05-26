@@ -30,6 +30,12 @@ async function runIntegrationTest() {
     fs.rmSync(buildDir, { recursive: true, force: true });
   }
 
+  // Clear existing traces first
+  const tracesDir = path.resolve(process.cwd(), ".omni-cache", "traces");
+  if (fs.existsSync(tracesDir)) {
+    fs.rmSync(tracesDir, { recursive: true, force: true });
+  }
+
   const buildProcess = spawnSync("cargo", ["run", "--bin", "omni", "--", "build", "examples/checkout.omni", "--target", "typescript"], {
     stdio: "inherit",
     env: {
@@ -44,7 +50,35 @@ async function runIntegrationTest() {
     process.exit(1);
   }
 
-  console.log(pc.green("✅ E2E Integration Test with Real LLM passed successfully!"));
+  console.log("\n" + pc.cyan("📊 Real LLM E2E Telemetry & Quality Report:"));
+  if (fs.existsSync(tracesDir)) {
+    const traceFiles = fs.readdirSync(tracesDir).filter(f => f.endsWith(".json") && f !== "retries.json");
+    if (traceFiles.length === 0) {
+      console.log(pc.yellow("   No trace files found in cache."));
+    }
+    for (const file of traceFiles) {
+      try {
+        const trace = JSON.parse(fs.readFileSync(path.join(tracesDir, file), "utf8"));
+        console.log(pc.bold(`\n   Service: ${pc.cyan(trace.serviceName)}`));
+        console.log(`     - Success: ${trace.success ? pc.green("Yes") : pc.red("No")}`);
+        console.log(`     - Total Generation Attempts: ${pc.yellow(trace.attempts)}`);
+        if (trace.errors && trace.errors.length > 0) {
+          console.log(`     - Self-Correction Errors Encountered:`);
+          for (let i = 0; i < trace.errors.length; i++) {
+            console.log(pc.dim(`       [Retry ${i + 1}] ${trace.errors[i]}`));
+          }
+        } else {
+          console.log(`     - Self-Correction Errors: ${pc.green("None (First-shot success)")}`);
+        }
+      } catch (err: any) {
+        console.error(pc.red(`     - Error reading trace file ${file}: ${err.message}`));
+      }
+    }
+  } else {
+    console.log(pc.yellow("   Traces directory not found."));
+  }
+
+  console.log(pc.green("\n✅ E2E Integration Test with Real LLM passed successfully!"));
 }
 
 runIntegrationTest().catch(err => {

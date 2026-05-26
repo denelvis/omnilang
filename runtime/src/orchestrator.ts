@@ -11,6 +11,7 @@ import { SpecIR } from "./types";
 import { SchemaGeneratorRegistry } from "./plugins/base";
 import { PrismaSchemaGenerator } from "./plugins/prisma";
 import { SqlSchemaGenerator } from "./plugins/sql";
+import { WorkflowGenerator } from "./testing/workflows";
 
 // Register default schema generator plugins
 SchemaGeneratorRegistry.register(new PrismaSchemaGenerator());
@@ -124,6 +125,64 @@ export class Orchestrator {
       }
     }
 
+    // 4.6. Generate code for each workflow / orchestrator in the spec IR
+    const workflowDecls = ir.source_file.declarations
+      .filter((d): d is { Workflow: any } => "Workflow" in d)
+      .map((d) => d.Workflow);
+
+    if (workflowDecls.length > 0) {
+      console.log(pc.yellow(`   Executing workflow generation flow...`));
+      const generator = new WorkflowGenerator();
+
+      for (const w of workflowDecls) {
+        // Map AST WorkflowDecl to WorkflowConfig
+        const transitions = w.transitions.map((t: any) => {
+          let guardStr: string | undefined = undefined;
+          if (t.guard) {
+            guardStr = JSON.stringify(t.guard);
+          }
+          return {
+            from: t.from,
+            to: t.to,
+            trigger: t.trigger || undefined,
+            guard: guardStr,
+            actions: t.actions || []
+          };
+        });
+
+        const config = {
+          name: w.name,
+          states: w.states || [],
+          transitions
+        };
+
+        const stateMachineCode = generator.generateStateMachine(config);
+        
+        const smPath = path.join(this.outputDir, "src", "services", `${w.name}StateMachine.ts`);
+        fs.writeFileSync(smPath, stateMachineCode, "utf8");
+        console.log(`     ${pc.green("✓")} Wrote src/services/${w.name}StateMachine.ts`);
+
+        const testPath = path.join(this.outputDir, "tests", `${w.name}StateMachine.test.ts`);
+        const initialSem = w.states[0] || "Init";
+        const testCode = `import { ${w.name}StateMachine, State } from "../src/services/${w.name}StateMachine";
+
+describe("${w.name}StateMachine", () => {
+  let sm: ${w.name}StateMachine;
+
+  beforeEach(() => {
+    sm = new ${w.name}StateMachine();
+  });
+
+  test("should initialize in state ${initialSem}", () => {
+    expect(sm.getCurrentState()).toBe(State.${initialSem});
+  });
+});
+`;
+        fs.writeFileSync(testPath, testCode, "utf8");
+        console.log(`     ${pc.green("✓")} Wrote tests/${w.name}StateMachine.test.ts`);
+      }
+    }
+
     // 5. Run Verification
     console.log(pc.yellow(`   Running verification tests...`));
     const verifier = new VerificationRunner(this.outputDir, this.target);
@@ -164,17 +223,11 @@ export class Orchestrator {
     // 1. Create directory structure
     fs.mkdirSync(this.outputDir, { recursive: true });
 
-    // Clean old services and tests to avoid compiling stale/previous service run files
+    // Ensure services and tests directories exist
     const servicesDir = path.join(this.outputDir, "src", "services");
-    if (fs.existsSync(servicesDir)) {
-      fs.rmSync(servicesDir, { recursive: true, force: true });
-    }
     fs.mkdirSync(servicesDir, { recursive: true });
 
     const testsDir = path.join(this.outputDir, "tests");
-    if (fs.existsSync(testsDir)) {
-      fs.rmSync(testsDir, { recursive: true, force: true });
-    }
     fs.mkdirSync(testsDir, { recursive: true });
 
     // 2. Write/Update package.json

@@ -14,6 +14,20 @@ export interface WorkflowConfig {
   transitions: Transition[];
 }
 
+function sanitizeIdentifier(name: string): string {
+  let clean = name.replace(/[^a-zA-Z0-9_$]/g, "_");
+  clean = clean.replace(/_+/g, "_");
+  clean = clean.replace(/^_+|_+$/g, "");
+  if (/^[0-9]/.test(clean)) {
+    clean = "_" + clean;
+  }
+  clean = clean.replace(/_([a-zA-Z0-9])/g, (g) => g[1].toUpperCase());
+  if (clean.length > 0) {
+    clean = clean[0].toLowerCase() + clean.slice(1);
+  }
+  return clean || "trigger";
+}
+
 export class WorkflowGenerator {
   public generateStateMachine(w: WorkflowConfig): string {
     console.log(`[Workflow Gen] Generating State Machine for: ${pc.cyan(w.name)}`);
@@ -21,7 +35,7 @@ export class WorkflowGenerator {
 
     const statesEnum = w.states.map(s => `  ${s} = "${s}",`).join("\n");
     const transitionMethods = w.transitions.map(t => {
-      const triggerName = t.trigger || `goto${t.to}`;
+      const triggerName = t.trigger ? sanitizeIdentifier(t.trigger) : `goto${t.to}`;
       return `
   public async ${triggerName}(): Promise<void> {
     if (this.currentState !== State.${t.from}) {
