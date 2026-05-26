@@ -55,6 +55,7 @@ jobs:
           cargo run --bin omni -- check examples/simple_greet.omni
           cargo run --bin omni -- check examples/stabilization_test.schema.omni
           cargo run --bin omni -- check examples/booking_flow.omni
+          cargo run --bin omni -- check examples/hybrid_billing.omni
 
 
       - name: Check .omni specs (if any)

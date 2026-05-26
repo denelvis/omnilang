@@ -26,7 +26,8 @@ export class OllamaProvider implements LLMProvider {
       return this.mockProvider.getMockResponse(systemPrompt, userPrompt);
     }
 
-    const selectedModel = model || process.env.OLLAMA_MODEL || process.env.OMNI_MODEL || this.model;
+    const isCloudModel = model && (model.startsWith("claude-") || model.startsWith("gpt-") || model.startsWith("gemini-"));
+    const selectedModel = (model && !isCloudModel) ? model : (process.env.OLLAMA_MODEL || process.env.OMNI_MODEL || this.model);
     console.log(pc.blue(`   [Ollama] Calling model: ${selectedModel} at ${this.host}...`));
     const url = `${this.host}/api/chat`;
 

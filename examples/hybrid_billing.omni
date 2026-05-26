@@ -1,0 +1,34 @@
+module acme.billing
+
+type AccountId = String
+
+type Account = struct {
+  id: AccountId
+  balance: Money
+  status: String
+}
+
+service PaymentService {
+  goal: "Handle billing account deposits, charges, and refunds safely"
+
+  /// Deposits money into the account
+  rpc Deposit(accountId: AccountId, amount: Money) -> Money {
+    preconditions:
+      - "Deposit amount must be strictly greater than zero"
+    postconditions:
+      - "New balance must increase exactly by the deposit amount"
+  }
+
+  /// Charges the account for a purchase
+  rpc Charge(accountId: AccountId, amount: Money) -> Bool {
+    preconditions:
+      - "Account balance must be greater than or equal to the charge amount"
+      - "Account must be in Active status"
+    postconditions:
+      - "If the charge is successful, the balance is decreased by the charge amount"
+  }
+
+  invariants:
+    - balance_safety: "Account.balance >= 0"
+    - audit_logging: "All successful transactions must generate an audit trail record"
+}

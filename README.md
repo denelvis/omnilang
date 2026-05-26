@@ -15,43 +15,43 @@
 
 ## What is OmniLang?
 
-OmniLang is a **declarative specification language** that bridges the gap between human intent and AI-generated code. You describe *what* your system should do — the AI agents figure out *how*.
+OmniLang is a **hybrid, declarative specification language** designed for AI-native development. You describe *what* your system should do — the interfaces, schemas, and invariants — and let the compiler and AI agents generate the verified implementation.
+
+By using a hybrid approach, developers can write strict signatures and type contracts to keep the AI on rails (preventing hallucinations) while expressing business rules in either natural language or formal math:
 
 ```omnilang
-module acme.checkout
+module acme.billing
 
-service Checkout {
-  goal: "Process customer orders with payment validation"
+type AccountId = String
 
-  constraints:
-    - idempotent
-    - latency(p95: <200ms)
-    - PCI_compliant
+type Account = struct {
+  id: AccountId
+  balance: Money
+  status: String
+}
 
-  rpc PlaceOrder {
-    inputs:
-      customer_id: CustomerId
-      items: List<OrderItem>
-      payment: PaymentMethod
+service PaymentService {
+  goal: "Handle billing account deposits and charges safely"
 
-    outputs:
-      order_id: OrderId
-      status: OrderStatus
-      receipt: Receipt
-
+  /// Deposits money into the account
+  rpc Deposit(accountId: AccountId, amount: Money) -> Money {
+    preconditions:
+      - "Deposit amount must be strictly greater than zero"
     postconditions:
-      - inventory_reserved(items)
-      - payment_charged(payment, total(items))
-
-    tests:
-      - scenario: "Successful order"
-        given: valid_customer(), in_stock_items(3)
-        expect: status == OrderStatus.Confirmed
-
-      - scenario: "Insufficient stock"
-        given: valid_customer(), out_of_stock_item()
-        expect_error: InsufficientStock
+      - "New balance must increase exactly by the deposit amount"
   }
+
+  /// Charges the account for a purchase
+  rpc Charge(accountId: AccountId, amount: Money) -> Bool {
+    preconditions:
+      - "Account balance must be greater than or equal to the charge amount"
+      - "Account must be in Active status"
+    postconditions:
+      - "If the charge is successful, the balance is decreased by the charge amount"
+  }
+
+  invariants:
+    - balance_safety: "Account.balance >= 0"
 }
 ```
 
@@ -74,11 +74,11 @@ Build succeeded. Confidence: High. Cost: $0.12. Duration: 1m 42s.
 
 | Concept | Description |
 |---------|-------------|
-| **Intent over implementation** | Describe *what*, not *how*. The spec is the source of truth. |
-| **Verification is compilation** | AI generates code → tests run → constraints check → output is proven correct. |
-| **Agent-agnostic** | Works with any LLM: OpenAI, Anthropic, Google, open-source models. |
-| **Confidence types** | Every artifact has a trust level: Proven, High, Medium, Low, Speculative. |
-| **Budget-aware** | Token limits, cost caps, model tiering — built into the language. |
+| **Hybrid Intent** | Combine strict type contracts (to prevent AI hallucinations) with natural language or formal business rules. |
+| **Separation of Concerns** | Keep your specification clean: business logic goes in `.omni`, compiler/LLM configurations go in `omni.toml`. |
+| **Verification is Compilation** | AI generates code → unit/property tests run → constraints check → output is proven correct. |
+| **Progressive Formalization** | Start with natural language constraints and add formal mathematical logic as the project matures. |
+| **Budget-aware** | Token limits, cost caps, and model tiering — configured globally in `omni.toml`. |
 
 ## Installation
 

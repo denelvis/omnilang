@@ -20,8 +20,8 @@ orchestrator BookingFlow {
         rule: "vip"
 
   invariants:
-    - money_safety: "Списание денег Paid происходит ТОЛЬКО после успешного FlightBooked и HotelBooked"
-    - saga_compensation: "Если HotelBooked упал, вызвать FlightService.Release"
+    - money_safety: "Charging money in Paid state occurs ONLY after successful FlightBooked and HotelBooked"
+    - saga_compensation: "If HotelBooked fails, call FlightService.Release"
 
   tests:
     - scenario: "Hotel reservation fails"

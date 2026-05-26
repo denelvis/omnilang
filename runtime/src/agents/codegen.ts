@@ -22,10 +22,7 @@ export class CodeGenAgent {
   ): Promise<{ success: boolean; files: string[] }> {
     console.log(pc.yellow(`   Generating service: ${pc.cyan(serviceName)} [${target}]...`));
 
-    let systemPrompt = getSystemPrompt(target);
-    if (promptAdditions) {
-      systemPrompt += promptAdditions;
-    }
+    const systemPrompt = getSystemPrompt(target, promptAdditions);
     const userPrompt = getUserPrompt(serviceName, ir, target);
 
     const response = await this.provider.generateCode(systemPrompt, userPrompt, model);
@@ -36,7 +33,12 @@ export class CodeGenAgent {
     for (const file of parsed.files) {
       const targetPath = path.join(outputDir, file.path);
       fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-      fs.writeFileSync(targetPath, file.content, "utf8");
+      
+      let content = file.content;
+      if (target === "typescript" && file.path.endsWith(".ts")) {
+        content = this.postProcessContent(content, serviceName);
+      }
+      fs.writeFileSync(targetPath, content, "utf8");
       
       console.log(`     ${pc.green("✓")} Wrote ${pc.dim(file.path)}`);
       writtenFiles.push(targetPath);
@@ -51,32 +53,85 @@ export class CodeGenAgent {
   }
 
   private parseResponse(response: string, serviceName: string): { files: Array<{ path: string; content: string }> } {
-    let cleanText = response.trim();
+    const cleanText = response.trim();
+    const files: Array<{ path: string; content: string }> = [];
 
-    // Try to extract JSON from markdown code block first
+    // Try to extract JSON from markdown code blocks first
     const jsonBlockRegex = /```json\s*([\s\S]*?)\s*```/g;
-    const match = jsonBlockRegex.exec(cleanText);
-    if (match && match[1]) {
-      cleanText = match[1].trim();
-    } else {
-      // Fallback: search for first '{' and last '}'
-      const firstBrace = cleanText.indexOf("{");
-      const lastBrace = cleanText.lastIndexOf("}");
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        cleanText = cleanText.substring(firstBrace, lastBrace + 1).trim();
+    let match;
+    while ((match = jsonBlockRegex.exec(cleanText)) !== null) {
+      if (match[1]) {
+        const blockText = this.convertBackticksToDoubleQuotes(match[1].trim());
+        try {
+          const parsedBlock = JSON.parse(blockText);
+          if (parsedBlock && typeof parsedBlock === "object") {
+            if (typeof parsedBlock.path === "string" && typeof parsedBlock.content === "string") {
+              files.push({ path: parsedBlock.path, content: parsedBlock.content });
+            } else if (Array.isArray(parsedBlock.files)) {
+              for (const f of parsedBlock.files) {
+                if (typeof f.path === "string" && typeof f.content === "string") {
+                  files.push(f);
+                }
+              }
+            } else if (parsedBlock.files && typeof parsedBlock.files === "object") {
+              for (const k of Object.keys(parsedBlock.files)) {
+                const val = parsedBlock.files[k];
+                files.push({
+                  path: k,
+                  content: typeof val === "string" ? val : (val.content || "")
+                });
+              }
+            } else {
+              const fileKeys = Object.keys(parsedBlock).filter(k => k.includes("/") || k.endsWith(".ts") || k.endsWith(".rs") || k.endsWith(".py") || k.endsWith(".js"));
+              if (fileKeys.length > 0) {
+                for (const k of fileKeys) {
+                  const val = parsedBlock[k];
+                  files.push({
+                    path: k,
+                    content: typeof val === "string" ? val : (val.content || "")
+                  });
+                }
+              }
+            }
+          }
+        } catch (e) {
+          try {
+            const recovered = this.attemptJsonRecovery(blockText);
+            const parsedBlock = JSON.parse(recovered);
+            if (parsedBlock && typeof parsedBlock === "object") {
+              if (typeof parsedBlock.path === "string" && typeof parsedBlock.content === "string") {
+                files.push({ path: parsedBlock.path, content: parsedBlock.content });
+              }
+            }
+          } catch (recoveryErr) {
+            // Ignore block parse failure
+          }
+        }
       }
     }
 
-    // Try to parse the clean text
+    if (files.length > 0) {
+      return { files };
+    }
+
+    // Fallback: search for first '{' and last '}' of the entire response
+    let singleJsonText = cleanText;
+    const firstBrace = singleJsonText.indexOf("{");
+    const lastBrace = singleJsonText.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      singleJsonText = singleJsonText.substring(firstBrace, lastBrace + 1).trim();
+    }
+
+    singleJsonText = this.convertBackticksToDoubleQuotes(singleJsonText);
+
     try {
-      const parsed = JSON.parse(cleanText);
+      const parsed = JSON.parse(singleJsonText);
       this.normalizeResponse(parsed, serviceName);
       this.validateResponseStructure(parsed);
       return parsed;
     } catch (e: any) {
-      // Attempt basic JSON recovery for simple hallucination cases (e.g., trailing commas, unescaped braces)
       try {
-        const recoveredText = this.attemptJsonRecovery(cleanText);
+        const recoveredText = this.attemptJsonRecovery(singleJsonText);
         const parsed = JSON.parse(recoveredText);
         this.normalizeResponse(parsed, serviceName);
         this.validateResponseStructure(parsed);
@@ -91,6 +146,19 @@ export class CodeGenAgent {
 
   private normalizeResponse(parsed: any, serviceName: string): void {
     if (!parsed || typeof parsed !== "object") {
+      return;
+    }
+
+    // Normalize files object variation
+    if (parsed.files && typeof parsed.files === "object" && !Array.isArray(parsed.files)) {
+      const fileKeys = Object.keys(parsed.files);
+      parsed.files = fileKeys.map(k => {
+        const val = parsed.files[k];
+        return {
+          path: k,
+          content: typeof val === "string" ? val : (val.content || "")
+        };
+      });
       return;
     }
 
@@ -125,6 +193,7 @@ export class CodeGenAgent {
             content: testVal.content || ""
           }
         ];
+        return;
       } else if (typeof implVal === "string" && typeof testVal === "string") {
         parsed.files = [
           {
@@ -136,7 +205,20 @@ export class CodeGenAgent {
             content: testVal
           }
         ];
+        return;
       }
+    }
+
+    // Case 3: Check if keys themselves look like file paths (e.g., contains '/' or ends with extension)
+    const fileKeys = Object.keys(parsed).filter(k => k.includes("/") || k.endsWith(".ts") || k.endsWith(".rs") || k.endsWith(".py") || k.endsWith(".js"));
+    if (fileKeys.length > 0) {
+      parsed.files = fileKeys.map(k => {
+        const val = parsed[k];
+        return {
+          path: k,
+          content: typeof val === "string" ? val : (val.content || "")
+        };
+      });
     }
   }
 
@@ -215,6 +297,18 @@ export class CodeGenAgent {
     return fixed;
   }
 
+  private convertBackticksToDoubleQuotes(text: string): string {
+    return text.replace(/:\s*`([\s\S]*?)`(\s*(?:,|\n|}))/g, (match, content, suffix) => {
+      const escaped = content
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, "\\n")
+        .replace(/\r/g, "\\r")
+        .replace(/\t/g, "\\t");
+      return `: "${escaped}"${suffix}`;
+    });
+  }
+
   private updateRustModFile(outputDir: string, serviceName: string): void {
     const modRsPath = path.join(outputDir, "src", "services", "mod.rs");
     const modName = this.toSnakeCase(serviceName);
@@ -226,6 +320,41 @@ export class CodeGenAgent {
         fs.appendFileSync(modRsPath, modLine);
       }
     }
+  }
+
+  private postProcessContent(content: string, serviceName: string): string {
+    let processed = content;
+
+    // Fix "export default class ServiceName" -> "export class ServiceName"
+    processed = processed.replace(new RegExp(`export\\s+default\\s+class\\s+${serviceName}\\b`, 'g'), `export class ${serviceName}`);
+
+    // Fix separate "export default ServiceName;" at the end
+    const defaultExportRegex = new RegExp(`export\\s+default\\s+${serviceName}\\b;?`, 'g');
+    if (defaultExportRegex.test(processed)) {
+      processed = processed.replace(defaultExportRegex, '');
+      // Ensure "class ServiceName" is exported
+      const classDeclRegex = new RegExp(`(^|\\n)class\\s+${serviceName}\\b`, 'g');
+      processed = processed.replace(classDeclRegex, `$1export class ${serviceName}`);
+    }
+
+    // Fix LLM using private for state map/helper methods needed in E2E tests
+    processed = processed.replace(/\bprivate\s+accounts\b/g, 'public accounts');
+    processed = processed.replace(/\bprivate\s+getAccount\b/g, 'public getAccount');
+
+    // Automatically re-export types imported from ../types so external code can access them
+    const importTypesRegex = /import\s+\{\s*([^}]+)\s*\}\s+from\s+['"]\.\.\/types(?:\.ts)?['"]/g;
+    let importMatch;
+    importTypesRegex.lastIndex = 0;
+    while ((importMatch = importTypesRegex.exec(processed)) !== null) {
+      const typesList = importMatch[1].trim();
+      const exportString = `export { ${typesList} };`;
+      // Check if already exported to avoid duplicate exports
+      if (!processed.includes(exportString) && !processed.includes(`export {${typesList}}`)) {
+        processed += `\n${exportString}\n`;
+      }
+    }
+
+    return processed.trim();
   }
 
   private toSnakeCase(name: string): string {
