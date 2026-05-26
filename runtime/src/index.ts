@@ -3,6 +3,7 @@ import minimist from "minimist";
 import * as dotenv from "dotenv";
 import pc from "picocolors";
 import { Orchestrator } from "./orchestrator";
+import { DocGenerator } from "./docs";
 
 dotenv.config();
 
@@ -12,6 +13,7 @@ function printUsage() {
   console.log(pc.bold("Options:"));
   console.log("  --output <dir>  Directory to output generated code (default: build)");
   console.log("  --target <lang> Target language (default: typescript)");
+  console.log("  --mode <mode>   Mode: 'build' (default) or 'docs'");
 }
 
 async function main() {
@@ -31,15 +33,27 @@ async function main() {
 
   const outputDir = argv.output || "build";
   const target = argv.target || "typescript";
+  const fullStack = !!argv["full-stack"];
+  const mode = argv.mode || "build";
 
-  console.log(pc.green(`🚀 Starting OmniLang Generator Runtime`));
+  console.log(pc.green(`🚀 Starting OmniLang Generator Runtime [Mode: ${mode}]`));
   console.log(`   IR Path:   ${pc.cyan(irPath)}`);
   console.log(`   Output:    ${pc.cyan(outputDir)}`);
-  console.log(`   Target:    ${pc.cyan(target)}`);
+  if (mode === "build") {
+    console.log(`   Target:    ${pc.cyan(target)}`);
+    if (fullStack) {
+      console.log(`   Mode:      ${pc.cyan("full-stack")}`);
+    }
+  }
 
   try {
-    const orchestrator = new Orchestrator({ irPath, outputDir, target });
-    await orchestrator.run();
+    if (mode === "docs") {
+      const docGen = new DocGenerator({ irPath, outputDir });
+      await docGen.generate();
+    } else {
+      const orchestrator = new Orchestrator({ irPath, outputDir, target, fullStack });
+      await orchestrator.run();
+    }
     process.exit(0);
   } catch (err: any) {
     console.error(pc.red(`error: runtime failed: ${err.message || err}`));

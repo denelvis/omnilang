@@ -603,3 +603,20 @@ pub enum PolicyClause {
         span: Span,
     },
 }
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub enum TrustLevel {
+    Speculative,
+    Low,
+    Medium,
+    High,
+    Proven,
+}
+
+impl std::fmt::Display for TrustLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}

@@ -1,6 +1,8 @@
 //! Spec IR — the validated intermediate representation output by the analyzer.
 
-use omni_parser::ast::{Declaration, Expression, Literal, RefinedType, SourceFile, TypeKind};
+use omni_parser::ast::{
+    Declaration, Expression, Literal, RefinedType, SourceFile, TrustLevel, TypeKind,
+};
 
 use crate::deps::DependencyGraph;
 use crate::symbols::SymbolTable;
@@ -73,6 +75,8 @@ pub struct ServiceDef {
     pub test_count: usize,
     pub metric_count: usize,
     pub metric_names: Vec<String>,
+    pub confidence: TrustLevel,
+    pub evidence: Vec<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -97,6 +101,7 @@ pub fn build_spec_ir(
     _symbols: &SymbolTable,
     dep_graph: &DependencyGraph,
 ) -> SpecIR {
+    let confidence_map = crate::type_check::compute_confidence_map(file);
     let mut types = Vec::new();
     let mut services = Vec::new();
     let mut total_rpcs = 0;
@@ -139,6 +144,11 @@ pub fn build_spec_ir(
                 total_constraints += s.constraints.len();
                 total_metrics += s.metrics.len();
 
+                let (confidence, evidence) = confidence_map
+                    .get(&s.name)
+                    .cloned()
+                    .unwrap_or((TrustLevel::Speculative, Vec::new()));
+
                 services.push(ServiceDef {
                     name: s.name.clone(),
                     goal: s.goal.clone(),
@@ -150,6 +160,8 @@ pub fn build_spec_ir(
                     test_count,
                     metric_count: s.metrics.len(),
                     metric_names,
+                    confidence,
+                    evidence,
                 });
             }
             Declaration::Component(c) => {

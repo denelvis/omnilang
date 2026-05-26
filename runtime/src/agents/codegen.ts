@@ -15,11 +15,15 @@ export class CodeGenAgent {
     serviceName: string,
     ir: any,
     outputDir: string,
-    target: string = "typescript"
+    target: string = "typescript",
+    promptAdditions: string = ""
   ): Promise<{ success: boolean; files: string[] }> {
     console.log(pc.yellow(`   Generating service: ${pc.cyan(serviceName)} [${target}]...`));
 
-    const systemPrompt = getSystemPrompt(target);
+    let systemPrompt = getSystemPrompt(target);
+    if (promptAdditions) {
+      systemPrompt += promptAdditions;
+    }
     const userPrompt = getUserPrompt(serviceName, ir, target);
 
     const response = await this.provider.generateCode(systemPrompt, userPrompt);

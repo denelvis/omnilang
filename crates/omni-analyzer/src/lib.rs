@@ -12,11 +12,16 @@
 
 pub mod constraints;
 pub mod deps;
+pub mod formal;
+pub mod gap_detector;
 pub mod ir;
 pub mod module_system;
+pub mod policy;
+pub mod schema;
 pub mod symbols;
 pub mod type_check;
 pub mod type_mapping;
+pub mod workflow;
 
 use omni_parser::ParseError;
 use omni_parser::ast::SourceFile;
@@ -67,6 +72,21 @@ pub fn analyze(file: &SourceFile) -> (Option<SpecIR>, Vec<Diagnostic>) {
     // Phase 3.5: Module system checks (visibility, mixin expansion)
     module_system::check_visibility(file, &mut diagnostics);
     module_system::expand_mixins(file, &mut diagnostics);
+
+    // Phase 4: Policy Enforcement
+    policy::enforce_policies(file, &mut diagnostics);
+
+    // Phase 4.1: Workflow Verification
+    workflow::check_workflows(file, &mut diagnostics);
+
+    // Phase 4.2: Intent Gap Detection
+    gap_detector::analyze_gaps(file, &mut diagnostics);
+
+    // Phase 4.3: Database Schema Evolution Check
+    schema::check_schema_evolution(file, &mut diagnostics);
+
+    // Phase 5.1: Formal Verification check
+    formal::verify_proof_obligations(file, &mut diagnostics);
 
     // Phase 4: Dependency graph
     let dep_graph = deps::build_dependency_graph(file, &mut diagnostics);
