@@ -67,8 +67,8 @@ pub struct GeneratorConfig {
 pub struct ServiceDef {
     pub name: String,
     pub goal: Option<String>,
-    pub rpc_count: usize,
-    pub rpc_names: Vec<String>,
+    pub operation_count: usize,
+    pub operation_names: Vec<String>,
     pub constraint_count: usize,
     pub constraint_names: Vec<String>,
     pub dependency_count: usize,
@@ -83,7 +83,7 @@ pub struct ServiceDef {
 pub struct SpecStats {
     pub type_count: usize,
     pub service_count: usize,
-    pub rpc_count: usize,
+    pub operation_count: usize,
     pub test_count: usize,
     pub constraint_count: usize,
     pub metric_count: usize,
@@ -104,7 +104,7 @@ pub fn build_spec_ir(
     let confidence_map = crate::type_check::compute_confidence_map(file);
     let mut types = Vec::new();
     let mut services = Vec::new();
-    let mut total_rpcs = 0;
+    let mut total_operations = 0;
     let mut total_tests = 0;
     let mut total_constraints = 0;
     let mut total_metrics = 0;
@@ -133,13 +133,13 @@ pub fn build_spec_ir(
                 });
             }
             Declaration::Service(s) => {
-                let rpc_names: Vec<String> = s.rpcs.iter().map(|r| r.name.clone()).collect();
+                let operation_names: Vec<String> = s.operations.iter().map(|r| r.name.clone()).collect();
                 let constraint_names: Vec<String> =
                     s.constraints.iter().map(|c| c.name.clone()).collect();
                 let metric_names: Vec<String> = s.metrics.iter().map(|m| m.name.clone()).collect();
-                let test_count: usize = s.rpcs.iter().map(|r| r.tests.len()).sum();
+                let test_count: usize = s.operations.iter().map(|r| r.tests.len()).sum();
 
-                total_rpcs += s.rpcs.len();
+                total_operations += s.operations.len();
                 total_tests += test_count;
                 total_constraints += s.constraints.len();
                 total_metrics += s.metrics.len();
@@ -152,8 +152,8 @@ pub fn build_spec_ir(
                 services.push(ServiceDef {
                     name: s.name.clone(),
                     goal: s.goal.clone(),
-                    rpc_count: s.rpcs.len(),
-                    rpc_names,
+                    operation_count: s.operations.len(),
+                    operation_names,
                     constraint_count: s.constraints.len(),
                     constraint_names,
                     dependency_count: s.depends_on.len(),
@@ -202,7 +202,7 @@ pub fn build_spec_ir(
     let stats = SpecStats {
         type_count: types.len(),
         service_count: services.len(),
-        rpc_count: total_rpcs,
+        operation_count: total_operations,
         test_count: total_tests,
         constraint_count: total_constraints,
         metric_count: total_metrics,

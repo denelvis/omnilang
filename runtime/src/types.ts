@@ -85,9 +85,9 @@ export type TestKind = { Scenario: { name: string; given: Expression[]; when: Ex
 
 export type TestBlock = { kind: TestKind; span: Span }
 
-export type RpcDecl = { name: string; inputs: Field[]; outputs: Field[]; preconditions: Expression[]; postconditions: Expression[]; errors: ErrorDecl[]; constraints: Constraint[]; tests: TestBlock[]; doc_comment: string | null; span: Span }
+export type OperationDecl = { name: string; inputs: Field[]; outputs: Field[]; preconditions: Expression[]; postconditions: Expression[]; errors: ErrorDecl[]; constraints: Constraint[]; tests: TestBlock[]; doc_comment: string | null; span: Span }
 
-export type ServiceDecl = { name: string; goal: string | null; constraints: Constraint[]; depends_on: string[]; dependencies: DependencyRef[]; policies: ServicePolicy[]; rpcs: RpcDecl[]; budget: BudgetBlock | null; metrics: MetricDecl[]; invariants: Expression[]; applies: string[]; visibility: Visibility; doc_comment: string | null; span: Span }
+export type ServiceDecl = { name: string; goal: string | null; constraints: Constraint[]; depends_on: string[]; dependencies: DependencyRef[]; policies: ServicePolicy[]; operations: OperationDecl[]; budget: BudgetBlock | null; metrics: MetricDecl[]; invariants: Expression[]; applies: string[]; visibility: Visibility; doc_comment: string | null; span: Span }
 
 /**
  * A reusable mixin block.
@@ -168,9 +168,9 @@ export type TypeDef = { name: string; kind: string; field_count: number; generat
  */
 export type GeneratorConfig = { min?: number | null; max?: number | null; min_length?: number | null; max_length?: number | null; format_pattern?: string | null; precision?: number | null }
 
-export type ServiceDef = { name: string; goal: string | null; rpc_count: number; rpc_names: string[]; constraint_count: number; constraint_names: string[]; dependency_count: number; test_count: number; metric_count: number; metric_names: string[]; confidence: TrustLevel; evidence: string[] }
+export type ServiceDef = { name: string; goal: string | null; operation_count: number; operation_names: string[]; constraint_count: number; constraint_names: string[]; dependency_count: number; test_count: number; metric_count: number; metric_names: string[]; confidence: TrustLevel; evidence: string[] }
 
-export type SpecStats = { type_count: number; service_count: number; rpc_count: number; test_count: number; constraint_count: number; metric_count: number; component_count: number; pipeline_count: number; workflow_count: number; agent_count: number; schema_count: number; policy_count: number }
+export type SpecStats = { type_count: number; service_count: number; operation_count: number; test_count: number; constraint_count: number; metric_count: number; component_count: number; pipeline_count: number; workflow_count: number; agent_count: number; schema_count: number; policy_count: number }
 
 /**
  * A type mapping entry from OmniLang to a target language type.

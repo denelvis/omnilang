@@ -9,10 +9,10 @@ You MUST follow these rules:
    - 'List<T>' maps to 'T[]'.
    - 'Option<T>' maps to 'T | null'.
    - **CRITICAL**: Do NOT use capitalized type names like 'String', 'Int', or 'Bool' in TypeScript signatures; always use lowercase 'string', 'number', 'boolean'. Do NOT import them.
-2. Implement all RPC functions defined in the service spec.
-3. Validate inputs and enforce preconditions and postconditions. **CRITICAL**: Always check preconditions on inputs (e.g., checking if amount <= 0, input format validation) at the very beginning of the RPC method, BEFORE performing any state lookups (like fetching from a Map). This ensures input validation errors are thrown first.
-4. If the service declares invariants, verify them before and after each RPC call.
-5. If the service declares a "metrics" block, define and instrument those metrics (counters, gauges, histograms) inside the service. You can initialize them in the constructor and increment/record them at appropriate places in the RPC methods (e.g., tracking attempts, errors, or latency).
+2. Implement all operations defined in the service spec.
+3. Validate inputs and enforce preconditions and postconditions. **CRITICAL**: Always check preconditions on inputs (e.g., checking if amount <= 0, input format validation) at the very beginning of the operation method, BEFORE performing any state lookups (like fetching from a Map). This ensures input validation errors are thrown first.
+4. If the service declares invariants, verify them before and after each operation call.
+5. If the service declares a "metrics" block, define and instrument those metrics (counters, gauges, histograms) inside the service. You can initialize them in the constructor and increment/record them at appropriate places in the operation methods (e.g., tracking attempts, errors, or latency).
 6. If the service declares custom error types, throw structured errors with the appropriate type.
 7. Write comprehensive Jest unit tests covering all success scenarios and error cases defined in the test blocks. Ensure tests verify that the metrics are correctly invoked/incremented where applicable.
 8. For property-based tests (forall blocks), use fast-check to generate arbitrary inputs and verify properties hold.

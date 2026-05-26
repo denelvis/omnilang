@@ -22,25 +22,25 @@ pub fn analyze_gaps(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) {
                 }
 
                 // 2. Logical Gap Detector
-                for rpc in &s.rpcs {
-                    if rpc.preconditions.is_empty() {
+                for op in &s.operations {
+                    if op.preconditions.is_empty() {
                         diagnostics.push(Diagnostic {
                             kind: DiagnosticKind::Warning,
                             message: format!(
-                                "Logical Gap Detector: RPC '{}' in service '{}' has no preconditions defined. Input parameters might not be validated.",
-                                rpc.name, s.name
+                                "Logical Gap Detector: Operation '{}' in service '{}' has no preconditions defined. Input parameters might not be validated.",
+                                op.name, s.name
                             ),
-                            span: rpc.span,
+                            span: op.span,
                         });
                     }
-                    if rpc.postconditions.is_empty() {
+                    if op.postconditions.is_empty() {
                         diagnostics.push(Diagnostic {
                             kind: DiagnosticKind::Warning,
                             message: format!(
-                                "Logical Gap Detector: RPC '{}' in service '{}' has no postconditions defined. The output states are unconstrained.",
-                                rpc.name, s.name
+                                "Logical Gap Detector: Operation '{}' in service '{}' has no postconditions defined. The output states are unconstrained.",
+                                op.name, s.name
                             ),
-                            span: rpc.span,
+                            span: op.span,
                         });
                     }
                 }

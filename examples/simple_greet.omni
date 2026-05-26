@@ -5,7 +5,7 @@ service GreetService {
   goal: "Say hello to users"
 
   /// Greets a user by name
-  rpc Greet(name: String) -> String {
+  operation Greet(name: String) -> String {
     preconditions:
       - name != ""
   }

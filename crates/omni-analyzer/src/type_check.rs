@@ -52,10 +52,10 @@ pub fn check_types(file: &SourceFile, symbols: &SymbolTable, diagnostics: &mut V
                 }
             }
             Declaration::Service(s) => {
-                for rpc in &s.rpcs {
-                    check_fields(&rpc.inputs, symbols, &[], diagnostics);
-                    check_fields(&rpc.outputs, symbols, &[], diagnostics);
-                    for err_decl in &rpc.errors {
+                for op in &s.operations {
+                    check_fields(&op.inputs, symbols, &[], diagnostics);
+                    check_fields(&op.outputs, symbols, &[], diagnostics);
+                    for err_decl in &op.errors {
                         check_fields(&err_decl.fields, symbols, &[], diagnostics);
                     }
                 }
@@ -357,13 +357,13 @@ pub fn check_constraints(
                     check_constraint_existence(c, symbols, diagnostics);
                     validate_constraint_args(c, diagnostics);
                 }
-                for rpc in &s.rpcs {
+                for op in &s.operations {
                     check_service_conflicts(
-                        &format!("{}.{}", s.name, rpc.name),
-                        &rpc.constraints,
+                        &format!("{}.{}", s.name, op.name),
+                        &op.constraints,
                         diagnostics,
                     );
-                    for c in &rpc.constraints {
+                    for c in &op.constraints {
                         check_constraint_existence(c, symbols, diagnostics);
                         validate_constraint_args(c, diagnostics);
                     }
@@ -787,7 +787,7 @@ pub fn compute_confidence_map(file: &SourceFile) -> HashMap<String, (TrustLevel,
                     || name.contains("chaos")
                     || name.contains("robustness")
             });
-            let test_count: usize = s.rpcs.iter().map(|r| r.tests.len()).sum();
+            let test_count: usize = s.operations.iter().map(|r| r.tests.len()).sum();
 
             let local_level = if has_formal {
                 evidence.push("Formal verification constraints defined".to_string());
@@ -960,13 +960,13 @@ mod tests {
     }
 
     #[test]
-    fn service_rpc_type_check() {
+    fn service_operation_type_check() {
         let diags = parse_and_check(
             r#"module test
 type OrderId = UUID
 service Orders {
   goal: "Manage orders"
-  rpc GetOrder {
+  operation GetOrder {
     inputs:
       id: OrderId
     outputs:
@@ -978,12 +978,12 @@ service Orders {
     }
 
     #[test]
-    fn service_rpc_undefined_type() {
+    fn service_operation_undefined_type() {
         let diags = parse_and_check(
             r#"module test
 service Orders {
   goal: "Manage orders"
-  rpc GetOrder {
+  operation GetOrder {
     inputs:
       id: NonExistentType
     outputs:
@@ -1252,7 +1252,7 @@ service Bank {
   goal: "Test"
   invariants:
     - balance >= 0
-  rpc Withdraw {
+  operation Withdraw {
     inputs:
       amount: Int
     outputs:
@@ -1272,7 +1272,7 @@ service Bank {
             r#"module test
 service Bank {
   goal: "Test"
-  rpc Withdraw {
+  operation Withdraw {
     inputs:
       amount: Int
     preconditions:
@@ -1307,27 +1307,27 @@ pub fn check_contracts(
                 );
             }
 
-            for rpc in &s.rpcs {
-                let rpc_inputs: Vec<String> = rpc.inputs.iter().map(|i| i.name.clone()).collect();
-                let rpc_outputs: Vec<String> = rpc.outputs.iter().map(|o| o.name.clone()).collect();
+            for op in &s.operations {
+                let op_inputs: Vec<String> = op.inputs.iter().map(|i| i.name.clone()).collect();
+                let op_outputs: Vec<String> = op.outputs.iter().map(|o| o.name.clone()).collect();
 
-                for pre in &rpc.preconditions {
+                for pre in &op.preconditions {
                     check_contract_expr(
                         pre,
                         ContractExprContext::Precondition,
-                        &rpc_inputs,
+                        &op_inputs,
                         &[],
                         symbols,
                         diagnostics,
                     );
                 }
 
-                for post in &rpc.postconditions {
+                for post in &op.postconditions {
                     check_contract_expr(
                         post,
                         ContractExprContext::Postcondition,
-                        &rpc_inputs,
-                        &rpc_outputs,
+                        &op_inputs,
+                        &op_outputs,
                         symbols,
                         diagnostics,
                     );
@@ -1423,10 +1423,10 @@ fn check_contract_expr(
 fn check_type_narrowing(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) {
     for decl in &file.declarations {
         if let Declaration::Service(s) = decl {
-            for rpc in &s.rpcs {
+            for op in &s.operations {
                 // Check preconditions for optional field comparisons without null-checks
-                for pre in &rpc.preconditions {
-                    check_narrowing_in_expr(pre, &rpc.inputs, diagnostics);
+                for pre in &op.preconditions {
+                    check_narrowing_in_expr(pre, &op.inputs, diagnostics);
                 }
             }
         }
@@ -1530,8 +1530,8 @@ fn check_option_propagation(
 ) {
     for decl in &file.declarations {
         if let Declaration::Service(s) = decl {
-            for rpc in &s.rpcs {
-                let optional_outputs: Vec<String> = rpc
+            for op in &s.operations {
+                let optional_outputs: Vec<String> = op
                     .outputs
                     .iter()
                     .filter(|f| f.ty.name == "Option")
@@ -1542,7 +1542,7 @@ fn check_option_propagation(
                     continue;
                 }
 
-                for post in &rpc.postconditions {
+                for post in &op.postconditions {
                     check_option_refs_in_expr(post, &optional_outputs, diagnostics);
                 }
             }
@@ -1620,7 +1620,7 @@ mod narrowing_tests {
 module test
 
 service PaymentService {
-  rpc Pay {
+  operation Pay {
     inputs:
       discount: Float?
     preconditions:
@@ -1645,7 +1645,7 @@ service PaymentService {
 module test
 
 service PaymentService {
-  rpc Pay {
+  operation Pay {
     inputs:
       amount: Float
     preconditions:
@@ -1671,7 +1671,7 @@ service PaymentService {
 module test
 
 service PaymentService {
-  rpc Pay {
+  operation Pay {
     inputs:
       amount: Float
     outputs:
@@ -1702,7 +1702,7 @@ service PaymentService {
 module test
 
 service PaymentService {
-  rpc Pay {
+  operation Pay {
     inputs:
       amount: Float
     outputs:

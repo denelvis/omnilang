@@ -54,7 +54,7 @@ export class SecurityRunner {
     }
 
     // Fuzzing simulation
-    console.log(`[Security Testing] Running fuzzing harness on RPC inputs...`);
+    console.log(`[Security Testing] Running fuzzing harness on operation inputs...`);
     const sqlInjectionPayload = "1' OR '1'='1";
     const xssPayload = "<script>alert('xss')</script>";
     console.log(`   Testing payload: ${pc.yellow(sqlInjectionPayload)} -> Sanitized/Rejected.`);

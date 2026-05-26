@@ -645,7 +645,7 @@ impl Parser {
         let mut depends_on = Vec::new();
         let mut dependencies = Vec::new();
         let mut policies = Vec::new();
-        let mut rpcs = Vec::new();
+        let mut operations = Vec::new();
         let mut budget = None;
         let mut metrics = Vec::new();
         let mut invariants = Vec::new();
@@ -692,10 +692,10 @@ impl Parser {
                         }
                     }
                 }
-                TokenKind::KwRpc => {
-                    if let Some(mut rpc) = self.parse_rpc_decl() {
-                        rpc.doc_comment = doc_comment;
-                        rpcs.push(rpc);
+                TokenKind::KwOperation => {
+                    if let Some(mut op) = self.parse_operation_decl() {
+                        op.doc_comment = doc_comment;
+                        operations.push(op);
                     }
                 }
                 TokenKind::KwBudget => {
@@ -729,7 +729,7 @@ impl Parser {
             depends_on,
             dependencies,
             policies,
-            rpcs,
+            operations,
             budget,
             metrics,
             invariants,
@@ -741,9 +741,9 @@ impl Parser {
     }
 
 
-    fn parse_rpc_decl(&mut self) -> Option<RpcDecl> {
+    fn parse_operation_decl(&mut self) -> Option<OperationDecl> {
         let start = self.current_span();
-        self.advance(); // consume 'rpc'
+        self.advance(); // consume 'operation'
 
         let name_tok = self.advance();
         let name = name_tok.text.clone();
@@ -828,7 +828,7 @@ impl Parser {
 
         let end = self.previous_span();
 
-        Some(RpcDecl {
+        Some(OperationDecl {
             name,
             inputs,
             outputs,
@@ -1795,7 +1795,7 @@ impl Parser {
                 | TokenKind::KwDependsOn
                 | TokenKind::KwDependencies
                 | TokenKind::KwPolicies
-                | TokenKind::KwRpc
+                | TokenKind::KwOperation
                 | TokenKind::KwProps
                 | TokenKind::KwState
                 | TokenKind::KwEvents
@@ -3114,12 +3114,12 @@ service Checkout {
     }
 
     #[test]
-    fn parse_service_with_rpc() {
+    fn parse_service_with_operation() {
         let file = parse_ok(
             r#"module test
 service Checkout {
   goal: "Process orders"
-  rpc PlaceOrder {
+  operation PlaceOrder {
     inputs:
       customer_id: CustomerId
       items: List
@@ -3129,10 +3129,10 @@ service Checkout {
 }"#,
         );
         if let Declaration::Service(s) = &file.declarations[0] {
-            assert_eq!(s.rpcs.len(), 1);
-            assert_eq!(s.rpcs[0].name, "PlaceOrder");
-            assert_eq!(s.rpcs[0].inputs.len(), 2);
-            assert_eq!(s.rpcs[0].outputs.len(), 1);
+            assert_eq!(s.operations.len(), 1);
+            assert_eq!(s.operations[0].name, "PlaceOrder");
+            assert_eq!(s.operations[0].inputs.len(), 2);
+            assert_eq!(s.operations[0].outputs.len(), 1);
         }
     }
 
@@ -3169,12 +3169,12 @@ service Orders {
     }
 
     #[test]
-    fn parse_rpc_with_tests() {
+    fn parse_operation_with_tests() {
         let file = parse_ok(
             r#"module test
 service Inventory {
   goal: "Manage inventory"
-  rpc CheckStock {
+  operation CheckStock {
     inputs:
       product_id: ProductId
     outputs:
@@ -3187,52 +3187,52 @@ service Inventory {
 }"#,
         );
         if let Declaration::Service(s) = &file.declarations[0] {
-            assert_eq!(s.rpcs[0].tests.len(), 1);
-            if let TestKind::Scenario { name, .. } = &s.rpcs[0].tests[0].kind {
+            assert_eq!(s.operations[0].tests.len(), 1);
+            if let TestKind::Scenario { name, .. } = &s.operations[0].tests[0].kind {
                 assert_eq!(name, "Product in stock");
             }
         }
     }
 
     #[test]
-    fn parse_rpc_shorthand_syntax_test() {
+    fn parse_operation_shorthand_syntax_test() {
         let file = parse_ok(
             r#"module test
 service GreetService {
-  rpc GreetShorthand(name: String) -> String
-  rpc GreetShorthandWithBody(name: String) -> String {
+  operation GreetShorthand(name: String) -> String
+  operation GreetShorthandWithBody(name: String) -> String {
     preconditions:
       - name != ""
   }
-  rpc GreetNoReturn(name: String)
+  operation GreetNoReturn(name: String)
 }"#,
         );
         if let Declaration::Service(s) = &file.declarations[0] {
-            assert_eq!(s.rpcs.len(), 3);
+            assert_eq!(s.operations.len(), 3);
             
-            // First RPC: GreetShorthand(name: String) -> String
-            let rpc1 = &s.rpcs[0];
-            assert_eq!(rpc1.name, "GreetShorthand");
-            assert_eq!(rpc1.inputs.len(), 1);
-            assert_eq!(rpc1.inputs[0].name, "name");
-            assert_eq!(rpc1.outputs.len(), 1);
-            assert_eq!(rpc1.outputs[0].name, "result");
+            // First Operation: GreetShorthand(name: String) -> String
+            let op1 = &s.operations[0];
+            assert_eq!(op1.name, "GreetShorthand");
+            assert_eq!(op1.inputs.len(), 1);
+            assert_eq!(op1.inputs[0].name, "name");
+            assert_eq!(op1.outputs.len(), 1);
+            assert_eq!(op1.outputs[0].name, "result");
             
-            // Second RPC: GreetShorthandWithBody(name: String) -> String { preconditions: - name != "" }
-            let rpc2 = &s.rpcs[1];
-            assert_eq!(rpc2.name, "GreetShorthandWithBody");
-            assert_eq!(rpc2.inputs.len(), 1);
-            assert_eq!(rpc2.inputs[0].name, "name");
-            assert_eq!(rpc2.outputs.len(), 1);
-            assert_eq!(rpc2.outputs[0].name, "result");
-            assert_eq!(rpc2.preconditions.len(), 1);
+            // Second Operation: GreetShorthandWithBody(name: String) -> String { preconditions: - name != "" }
+            let op2 = &s.operations[1];
+            assert_eq!(op2.name, "GreetShorthandWithBody");
+            assert_eq!(op2.inputs.len(), 1);
+            assert_eq!(op2.inputs[0].name, "name");
+            assert_eq!(op2.outputs.len(), 1);
+            assert_eq!(op2.outputs[0].name, "result");
+            assert_eq!(op2.preconditions.len(), 1);
             
-            // Third RPC: GreetNoReturn(name: String)
-            let rpc3 = &s.rpcs[2];
-            assert_eq!(rpc3.name, "GreetNoReturn");
-            assert_eq!(rpc3.inputs.len(), 1);
-            assert_eq!(rpc3.inputs[0].name, "name");
-            assert!(rpc3.outputs.is_empty());
+            // Third Operation: GreetNoReturn(name: String)
+            let op3 = &s.operations[2];
+            assert_eq!(op3.name, "GreetNoReturn");
+            assert_eq!(op3.inputs.len(), 1);
+            assert_eq!(op3.inputs[0].name, "name");
+            assert!(op3.outputs.is_empty());
         } else {
             panic!("Expected Service declaration");
         }
@@ -3483,7 +3483,7 @@ service Bank {
   invariants:
     - balance >= 0
     - total_deposits >= total_withdrawals
-  rpc Withdraw {
+  operation Withdraw {
     inputs:
       amount: Int
     outputs:
@@ -3501,12 +3501,12 @@ service Bank {
             assert_eq!(s.name, "Bank");
             println!("INVARIANTS: {:#?}", s.invariants);
             assert_eq!(s.invariants.len(), 2);
-            assert_eq!(s.rpcs.len(), 1);
-            let rpc = &s.rpcs[0];
-            assert_eq!(rpc.tests.len(), 1);
+            assert_eq!(s.operations.len(), 1);
+            let op = &s.operations[0];
+            assert_eq!(op.tests.len(), 1);
             if let TestKind::Property {
                 name, quantifiers, ..
-            } = &rpc.tests[0].kind
+            } = &op.tests[0].kind
             {
                 assert_eq!(name, "Withdraw reduction");
                 assert_eq!(quantifiers.len(), 2);
@@ -3530,7 +3530,7 @@ service Bank {
 service GreetService {
   /// This is a doc comment
   /// for Greet method
-  rpc Greet(name: String) -> String
+  operation Greet(name: String) -> String
 }
 
 /// Doc comment for MyType
@@ -3546,14 +3546,14 @@ schema MySchema {
         );
         assert_eq!(file.declarations.len(), 3);
         
-        // 1. Service GreetService and RPC Greet
+        // 1. Service GreetService and Operation Greet
         if let Declaration::Service(s) = &file.declarations[0] {
             assert_eq!(s.name, "GreetService");
             assert_eq!(s.doc_comment, Some("This is a doc comment\nfor GreetService".to_string()));
             
-            let rpc = &s.rpcs[0];
-            assert_eq!(rpc.name, "Greet");
-            assert_eq!(rpc.doc_comment, Some("This is a doc comment\nfor Greet method".to_string()));
+            let op = &s.operations[0];
+            assert_eq!(op.name, "Greet");
+            assert_eq!(op.doc_comment, Some("This is a doc comment\nfor Greet method".to_string()));
         } else {
             panic!("Expected Service declaration");
         }

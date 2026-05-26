@@ -3,7 +3,7 @@
 //! Features:
 //! - Diagnostics (errors/warnings from the analyzer)
 //! - Semantic tokens (syntax highlighting)
-//! - Go to definition (types, services, RPCs)
+//! - Go to definition (types, services, operations)
 //! - Hover information
 //! - Autocomplete (keywords, types, constraints)
 
@@ -247,7 +247,7 @@ impl LanguageServer for Backend {
             "invariants",
             "errors",
             "depends_on",
-            "rpc",
+            "operation",
             "budget",
             "metrics",
             "tests",
@@ -309,7 +309,7 @@ impl LanguageServer for Backend {
         // Check if it's a keyword
         let info = match word.as_str() {
             "service" => {
-                Some("**service** — Declares a backend service with RPCs, constraints, and tests.")
+                Some("**service** — Declares a backend service with operations, constraints, and tests.")
             }
             "type" => Some("**type** — Declares a data type (struct, enum, refined, or alias)."),
             "mixin" => {
@@ -318,7 +318,7 @@ impl LanguageServer for Backend {
             "constraint" => Some(
                 "**constraint** — Declares a named constraint with requirements and verification.",
             ),
-            "rpc" => Some("**rpc** — Declares a remote procedure call within a service."),
+            "operation" => Some("**operation** — Declares an operation within a service."),
             "module" => Some("**module** — Declares the module path for this file."),
             "export" => Some("**export** — Marks a declaration as exported from this module."),
             "private" => Some("**private** — Marks a declaration as private to this module."),

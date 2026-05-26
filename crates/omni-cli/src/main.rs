@@ -309,11 +309,11 @@ fn cmd_check(path: &str, format: &str, verbose: bool, quiet: bool) -> i32 {
             && let Some(ir) = &ir
         {
             eprintln!(
-                "  {} {} types, {} services, {} RPCs, {} tests, {} metrics",
+                "  {} {} types, {} services, {} operations, {} tests, {} metrics",
                 "✓".green().bold(),
                 ir.stats.type_count,
                 ir.stats.service_count,
-                ir.stats.rpc_count,
+                ir.stats.operation_count,
                 ir.stats.test_count,
                 ir.stats.metric_count,
             );
@@ -392,10 +392,10 @@ fn cmd_plan(path: &str) -> i32 {
             println!();
             println!("  Module: {}", ir.module_path.join(".").cyan());
             println!(
-                "  Types:  {} | Services: {} | RPCs: {} | Tests: {} | Metrics: {}",
+                "  Types:  {} | Services: {} | Operations: {} | Tests: {} | Metrics: {}",
                 ir.stats.type_count.to_string().green(),
                 ir.stats.service_count.to_string().green(),
-                ir.stats.rpc_count.to_string().green(),
+                ir.stats.operation_count.to_string().green(),
                 ir.stats.test_count.to_string().green(),
                 ir.stats.metric_count.to_string().green(),
             );
@@ -405,10 +405,10 @@ fn cmd_plan(path: &str) -> i32 {
                 println!("  {}", "Build order:".bold());
                 for (i, service) in ir.services.iter().enumerate() {
                     println!(
-                        "    {}. {} — {} RPC(s), {} constraint(s), {} metric(s)",
+                        "    {}. {} — {} operation(s), {} constraint(s), {} metric(s)",
                         i + 1,
                         service.name.cyan(),
-                        service.rpc_count,
+                        service.operation_count,
                         service.constraint_count,
                         service.metric_count,
                     );
@@ -416,9 +416,9 @@ fn cmd_plan(path: &str) -> i32 {
             }
             println!();
 
-            let rpc_count = ir.stats.rpc_count;
+            let operation_count = ir.stats.operation_count;
             let constraint_count: usize = ir.services.iter().map(|s| s.constraint_count).sum();
-            let complexity = rpc_count + constraint_count * 2 + ir.stats.test_count;
+            let complexity = operation_count + constraint_count * 2 + ir.stats.test_count;
 
             println!("  {}", "Model Routing Recommendation (ML-based):".bold());
             let (recommended_model, group_name) = if complexity > 10 {
@@ -438,7 +438,7 @@ fn cmd_plan(path: &str) -> i32 {
 
             println!("  {}", "Predictive Cost & Savings:".bold());
             let cold_cost = ((ir.stats.service_count as f64 * 0.15)
-                + (rpc_count as f64 * 0.05)
+                + (operation_count as f64 * 0.05)
                 + (constraint_count as f64 * 0.10)
                 + (ir.stats.test_count as f64 * 0.02))
                 .max(0.05);
@@ -495,21 +495,21 @@ fn check_federated_compatibility(repos: &[(&str, &str)]) -> bool {
                     all_ok = false;
                 } else {
                     println!(
-                        "       {} All service RPC contracts compatible with shared types.",
+                        "       {} All service operation contracts compatible with shared types.",
                         "✓".green()
                     );
                 }
             }
         } else if spec_file.contains("invalid") {
             eprintln!(
-                "{} Contract mismatch found in federated build for repo '{}': RPC signature mismatch.",
+                "{} Contract mismatch found in federated build for repo '{}': operation signature mismatch.",
                 "error:".red().bold(),
                 repo_name
             );
             all_ok = false;
         } else {
             println!(
-                "       {} All service RPC contracts compatible with shared types.",
+                "       {} All service operation contracts compatible with shared types.",
                 "✓".green()
             );
         }
@@ -839,7 +839,7 @@ service GreetingService {
   constraints:
     - latency(p95: 100ms)
 
-  rpc SayHello {
+  operation SayHello {
     inputs:
       name: String
     outputs:
@@ -1583,7 +1583,7 @@ fn cmd_install(package: &str) -> i32 {
         let registry_dir = std::path::Path::new(".omni-cache/registry");
         let _ = std::fs::create_dir_all(registry_dir);
         let mock_spec = format!(
-            "module {}\n\ntype UserToken = String\n\nservice AuthHelper {{\n  rpc ValidateToken(token: UserToken) -> status: Boolean\n}}\n",
+            "module {}\n\ntype UserToken = String\n\nservice AuthHelper {{\n  operation ValidateToken(token: UserToken) -> status: Boolean\n}}\n",
             pkg_name.replace("-", "_")
         );
         let _ = std::fs::write(&registry_file, mock_spec);
