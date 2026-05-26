@@ -1,0 +1,17 @@
+module acme.testing.self_correction
+
+service SelfCorrectingService {
+  goal: "Test self correction capabilities of the generator."
+
+  rpc Process {
+    inputs:
+      input_val: String
+
+    outputs:
+      result: String
+
+    tests:
+      - scenario: "Process successfully"
+        expect: result == "ok"
+  }
+}

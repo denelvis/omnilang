@@ -550,7 +550,29 @@ fn cmd_build(
             wire_format
         );
     }
-    if let Some(max_budget) = budget {
+    // Read budget from omni.toml if not specified on CLI
+    let mut final_budget = budget;
+    if final_budget.is_none() {
+        if let Some(manifest_path) = find_omni_toml() {
+            if let Ok(toml_content) = std::fs::read_to_string(manifest_path) {
+                if let Ok(table) = toml_content.parse::<toml::Table>() {
+                    if let Some(budget_val) = table.get("budget") {
+                        if let Some(budget_table) = budget_val.as_table() {
+                            if let Some(max_total_val) = budget_table.get("max_total") {
+                                if let Some(max_total) = max_total_val.as_float() {
+                                    final_budget = Some(max_total);
+                                } else if let Some(max_total) = max_total_val.as_integer() {
+                                    final_budget = Some(max_total as f64);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(max_budget) = final_budget {
         println!(
             "   {} Budget limit: ${}",
             "💰".yellow(),
@@ -644,15 +666,29 @@ fn cmd_build(
             }
         };
 
-        // Parse and analyze
-        let (ir, diagnostics, parse_errors) = omni_analyzer::parse_and_analyze(&source);
-
-        // Report parse errors
+        let (tokens, lex_errors) = omni_parser::Lexer::new(&source).tokenize();
         let mut has_errors = false;
+        for err in &lex_errors {
+            eprintln!("{} {} {}", "error:".red().bold(), file_path.dimmed(), err);
+            has_errors = true;
+        }
+        if has_errors {
+            return 1;
+        }
+
+        let (mut ast_file, parse_errors) = omni_parser::parser::Parser::new(tokens).parse();
         for err in &parse_errors {
             eprintln!("{} {} {}", "error:".red().bold(), file_path.dimmed(), err);
             has_errors = true;
         }
+        if has_errors {
+            return 1;
+        }
+
+        // Inject target dependencies from omni.toml
+        inject_omni_toml_dependencies(&mut ast_file);
+
+        let (ir, diagnostics) = omni_analyzer::analyze(&ast_file);
 
         // Report analyzer diagnostics
         for diag in &diagnostics {
@@ -735,7 +771,7 @@ fn cmd_build(
                 cmd.arg("--full-stack");
             }
             // wire_format is deprecated — always JSON, don't pass to runtime
-            if let Some(max_budget) = budget {
+            if let Some(max_budget) = final_budget {
                 cmd.arg("--budget").arg(format!("{:.2}", max_budget));
             }
 
@@ -1062,10 +1098,17 @@ fn build_chain_json(
         ));
     }
 
+    let confidence = if total_suites > 0 && all_tests_pass {
+        "Proven"
+    } else {
+        "Speculative"
+    };
+
     format!(
-        "{{\n  \"version\": \"{}\",\n  \"build_dir\": \"{}\",\n  \"chain\": [\n    {}\n  ]\n}}",
+        "{{\n  \"version\": \"{}\",\n  \"build_dir\": \"{}\",\n  \"confidence\": \"{}\",\n  \"chain\": [\n    {}\n  ]\n}}",
         env!("CARGO_PKG_VERSION"),
         build_path,
+        confidence,
         chain_entries.join(",\n    ")
     )
 }
@@ -2295,6 +2338,64 @@ fn cmd_dashboard(output: &str) -> i32 {
     0
 }
 
+fn find_omni_toml() -> Option<PathBuf> {
+    let mut current = std::env::current_dir().ok()?;
+    loop {
+        let manifest = current.join("omni.toml");
+        if manifest.is_file() {
+            return Some(manifest);
+        }
+        if !current.pop() {
+            break;
+        }
+    }
+    None
+}
+
+fn inject_omni_toml_dependencies(file: &mut omni_parser::ast::SourceFile) {
+    if let Some(manifest_path) = find_omni_toml() {
+        if let Ok(toml_content) = std::fs::read_to_string(manifest_path) {
+            if let Ok(table) = toml_content.parse::<toml::Table>() {
+                if let Some(target_val) = table.get("target") {
+                    if let Some(target_table) = target_val.as_table() {
+                        let mut entries = Vec::new();
+                        for (target_name, target_cfg) in target_table {
+                            if let Some(deps_val) = target_cfg.get("dependencies") {
+                                if let Some(deps_table) = deps_val.as_table() {
+                                    let mut packages = Vec::new();
+                                    for (pkg_name, pkg_ver) in deps_table {
+                                        if let Some(ver_str) = pkg_ver.as_str() {
+                                            packages.push(omni_parser::ast::DependencyPackage {
+                                                name: pkg_name.clone(),
+                                                version: ver_str.to_string(),
+                                                span: omni_parser::Span { start: 0, end: 0 },
+                                            });
+                                        }
+                                    }
+                                    entries.push(omni_parser::ast::TargetDependencyEntry {
+                                        target: target_name.clone(),
+                                        packages,
+                                        span: omni_parser::Span { start: 0, end: 0 },
+                                    });
+                                }
+                            }
+                        }
+                        if !entries.is_empty() {
+                            let decl = omni_parser::ast::Declaration::TargetDependencies(
+                                omni_parser::ast::TargetDependenciesDecl {
+                                    entries,
+                                    span: omni_parser::Span { start: 0, end: 0 },
+                                }
+                            );
+                            file.declarations.push(decl);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2338,4 +2439,53 @@ mod tests {
         assert_eq!(extract_xml_attr(element, "tests"), Some("5".to_string()));
         assert_eq!(extract_xml_attr(element, "missing"), None);
     }
+
+    #[test]
+    fn test_find_omni_toml() {
+        let res = find_omni_toml();
+        assert!(res.is_some());
+        let path = res.unwrap();
+        assert!(path.ends_with("omni.toml"));
+        assert!(path.is_file());
+    }
+
+    #[test]
+    fn test_cmd_check() {
+        let manifest = find_omni_toml().expect("failed to find omni.toml");
+        let root = manifest.parent().expect("failed to get parent of omni.toml");
+        let path = root.join("examples").join("simple_greet.omni");
+        let path_str = path.to_string_lossy();
+        assert_eq!(cmd_check(&path_str, "text", false, false), 0);
+    }
+
+    #[test]
+    fn test_cmd_plan() {
+        let manifest = find_omni_toml().expect("failed to find omni.toml");
+        let root = manifest.parent().expect("failed to get parent of omni.toml");
+        let path = root.join("examples").join("simple_greet.omni");
+        let path_str = path.to_string_lossy();
+        assert_eq!(cmd_plan(&path_str), 0);
+    }
+
+    #[test]
+    fn test_inject_omni_toml_dependencies() {
+        let mut source_file = omni_parser::ast::SourceFile {
+            module: omni_parser::ast::ModuleDecl {
+                path: vec!["test".to_string()],
+                span: omni_parser::Span { start: 0, end: 0 },
+            },
+            imports: Vec::new(),
+            exports: Vec::new(),
+            declarations: Vec::new(),
+        };
+
+        inject_omni_toml_dependencies(&mut source_file);
+
+        assert!(!source_file.declarations.is_empty());
+        let has_deps = source_file.declarations.iter().any(|decl| {
+            matches!(decl, omni_parser::ast::Declaration::TargetDependencies(_))
+        });
+        assert!(has_deps);
+    }
 }
+

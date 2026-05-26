@@ -20,7 +20,7 @@ type OrderItem = struct {
 type Order = struct {
   id: OrderId
   customer_id: String
-  items: List
+  items: List<OrderItem>
   status: OrderStatus
   total: Decimal
   created_at: DateTime
@@ -42,7 +42,7 @@ service Checkout {
   rpc PlaceOrder {
     inputs:
       customer_id: String
-      items: List
+      items: List<OrderItem>
       payment_method: String
 
     outputs:
@@ -50,12 +50,12 @@ service Checkout {
       status: OrderStatus
 
     postconditions:
-      - status == Confirmed
+      - status == OrderStatus.Confirmed
 
     tests:
       - scenario: "Successful order"
         given: valid_customer()
-        expect: status == Confirmed
+        expect: status == OrderStatus.Confirmed
 
       - scenario: "Empty cart"
         expect_error: EmptyCart
@@ -73,9 +73,9 @@ service Checkout {
       status: OrderStatus
 
     preconditions:
-      - status != Cancelled
+      - status != OrderStatus.Cancelled
 
     postconditions:
-      - status == Cancelled
+      - status == OrderStatus.Cancelled
   }
 }

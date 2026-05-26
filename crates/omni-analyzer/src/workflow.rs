@@ -1,6 +1,6 @@
 use crate::{Diagnostic, DiagnosticKind};
 use omni_parser::ast::{Declaration, SourceFile, WorkflowDecl};
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque, HashMap};
 
 /// Check workflow transitions, detect dead states, and validate state definitions
 pub fn check_workflows(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) {
@@ -12,12 +12,52 @@ pub fn check_workflows(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) {
     }
 }
 
+fn is_wildcard_state(state: &str) -> bool {
+    state.starts_with("AnyState")
+}
+
+fn get_matching_concrete_states<'a>(wildcard: &str, all_states: &'a [String]) -> Vec<&'a str> {
+    let mut matches = Vec::new();
+    let except_suffix = "AnyStateExcept";
+    let except_state = if wildcard.starts_with(except_suffix) {
+        Some(&wildcard[except_suffix.len()..])
+    } else {
+        None
+    };
+
+    for s in all_states {
+        let s_str = s.as_str();
+        if is_wildcard_state(s_str) {
+            continue;
+        }
+        if let Some(exc) = except_state {
+            if s_str == exc {
+                continue;
+            }
+        }
+        matches.push(s_str);
+    }
+    matches
+}
+
 fn validate_workflow_transitions(w: &WorkflowDecl, diagnostics: &mut Vec<Diagnostic>) {
     let states_set: HashSet<&str> = w.states.iter().map(|s| s.as_str()).collect();
 
     for trans in &w.transitions {
-        // Validate from state
-        if !states_set.contains(trans.from.as_str()) {
+        // Validate from state (which can be a wildcard)
+        if trans.from.starts_with("AnyStateExcept") {
+            let except_state = &trans.from["AnyStateExcept".len()..];
+            if !states_set.contains(except_state) {
+                diagnostics.push(Diagnostic {
+                    kind: DiagnosticKind::Error,
+                    message: format!(
+                        "Workflow '{}': wildcard transition excepts undefined state '{}'",
+                        w.name, except_state
+                    ),
+                    span: trans.span,
+                });
+            }
+        } else if !is_wildcard_state(trans.from.as_str()) && !states_set.contains(trans.from.as_str()) {
             diagnostics.push(Diagnostic {
                 kind: DiagnosticKind::Error,
                 message: format!(
@@ -67,27 +107,42 @@ fn detect_dead_states(w: &WorkflowDecl, diagnostics: &mut Vec<Diagnostic>) {
     let mut visited = HashSet::new();
     let mut queue = VecDeque::new();
 
+    // Build transition adjacency list expanding wildcards
+    let mut adj: HashMap<&str, Vec<&str>> = HashMap::new();
+    for trans in &w.transitions {
+        let sources = if is_wildcard_state(&trans.from) {
+            get_matching_concrete_states(&trans.from, &w.states)
+        } else {
+            vec![trans.from.as_str()]
+        };
+
+        for src in sources {
+            adj.entry(src).or_default().push(trans.to.as_str());
+            if let Some(timeout) = &trans.timeout {
+                adj.entry(src).or_default().push(timeout.target_state.as_str());
+            }
+        }
+    }
+
     visited.insert(start_state.as_str());
     queue.push_back(start_state.as_str());
 
     while let Some(current) = queue.pop_front() {
-        for trans in &w.transitions {
-            if trans.from == current && !visited.contains(trans.to.as_str()) {
-                visited.insert(trans.to.as_str());
-                queue.push_back(trans.to.as_str());
-            }
-            if let Some(timeout) = trans
-                .timeout
-                .as_ref()
-                .filter(|t| trans.from == current && !visited.contains(t.target_state.as_str()))
-            {
-                visited.insert(timeout.target_state.as_str());
-                queue.push_back(timeout.target_state.as_str());
+        if let Some(neighbors) = adj.get(current) {
+            for &next in neighbors {
+                if !visited.contains(next) {
+                    visited.insert(next);
+                    queue.push_back(next);
+                }
             }
         }
     }
 
     for state in &w.states {
+        // Skip wildcard states since they are meta-states, not concrete reachable states
+        if is_wildcard_state(state.as_str()) {
+            continue;
+        }
         if !visited.contains(state.as_str()) {
             diagnostics.push(Diagnostic {
                 kind: DiagnosticKind::Warning,

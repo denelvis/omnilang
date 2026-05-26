@@ -60,18 +60,20 @@ pub fn analyze_gaps(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) {
     }
 }
 
-/// Calculate simple shannon entropy of a string (normalized)
+/// Calculate Shannon entropy of a string
 fn calculate_entropy(text: &str) -> f64 {
-    if text.len() < 5 {
-        return 1.5;
+    if text.is_empty() {
+        return 0.0;
     }
-    // Simple mock calculation representing complexity
-    let mut word_count = text.split_whitespace().count() as f64;
-    if word_count == 0.0 {
-        word_count = 1.0;
+    let mut counts = std::collections::HashMap::new();
+    for c in text.chars() {
+        *counts.entry(c).or_insert(0) += 1;
     }
-    let length = text.len() as f64;
-
-    // Entropy is higher for longer, more descriptive sentences
-    (length / 10.0) * (word_count / 3.0)
+    let total = text.chars().count() as f64;
+    let mut entropy = 0.0;
+    for &count in counts.values() {
+        let p = count as f64 / total;
+        entropy -= p * p.log2();
+    }
+    entropy
 }

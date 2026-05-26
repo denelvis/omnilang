@@ -33,6 +33,10 @@ async function main() {
 
   const outputDir = argv.output || "build";
   const target = argv.target || "typescript";
+  if (target !== "typescript") {
+    console.error(pc.red(`error: target '${target}' is not supported. Only 'typescript' is supported in this version.`));
+    process.exit(1);
+  }
   const fullStack = !!argv["full-stack"];
   const mode = argv.mode || "build";
 

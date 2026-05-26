@@ -6,7 +6,7 @@
 use crate::Span;
 
 /// Visibility of a declaration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
 pub enum Visibility {
     /// Public (default) — visible to importing modules.
     Public,
@@ -15,7 +15,7 @@ pub enum Visibility {
 }
 
 /// A complete OmniLang source file.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct SourceFile {
     /// Module declaration (required, first statement).
     pub module: ModuleDecl,
@@ -28,7 +28,7 @@ pub struct SourceFile {
 }
 
 /// Module declaration: `module acme.payments.checkout`
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct ModuleDecl {
     /// Dotted module path, e.g. `["acme", "payments", "checkout"]`.
     pub path: Vec<String>,
@@ -36,7 +36,7 @@ pub struct ModuleDecl {
 }
 
 /// Import declaration: `use std.http.{Request, Response}`
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct ImportDecl {
     /// The import path segments.
     pub path: Vec<String>,
@@ -48,7 +48,7 @@ pub struct ImportDecl {
 }
 
 /// The kind of import path.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
 pub enum ImportKind {
     /// Standard dotted path: `use std.http.Request`
     Standard,
@@ -61,7 +61,7 @@ pub enum ImportKind {
     },
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub enum ImportItems {
     /// `use std.auth.*`
     Wildcard,
@@ -69,7 +69,7 @@ pub enum ImportItems {
     Named(Vec<ImportItem>),
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct ImportItem {
     pub name: String,
     /// Optional alias: `use std.money.Money as Currency`
@@ -78,7 +78,7 @@ pub struct ImportItem {
 }
 
 /// A top-level declaration.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub enum Declaration {
     Type(TypeDecl),
     Service(ServiceDecl),
@@ -90,9 +90,10 @@ pub enum Declaration {
     Policy(PolicyDecl),
     Constraint(ConstraintDecl),
     Mixin(MixinDecl),
+    TargetDependencies(TargetDependenciesDecl),
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct ConstraintDecl {
     pub name: String,
     pub requires: Vec<Constraint>,
@@ -100,7 +101,7 @@ pub struct ConstraintDecl {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct VerificationEntry {
     pub tool: String,
     pub evidence: String,
@@ -111,23 +112,24 @@ pub struct VerificationEntry {
 // Type declarations
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct TypeParam {
     pub name: String,
     pub bounds: Vec<TypeRef>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct TypeDecl {
     pub name: String,
     pub type_params: Vec<TypeParam>,
     pub kind: TypeKind,
     pub visibility: Visibility,
+    pub doc_comment: Option<String>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub enum TypeKind {
     /// `type OrderStatus = enum { Draft, Pending, ... }`
     Enum(EnumType),
@@ -139,13 +141,13 @@ pub enum TypeKind {
     Alias(TypeRef),
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct EnumType {
     pub variants: Vec<EnumVariant>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct EnumVariant {
     pub name: String,
     /// Optional associated data: `Shipped(tracking_id: String)`
@@ -153,28 +155,29 @@ pub struct EnumVariant {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct StructType {
     pub fields: Vec<Field>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct Field {
     pub name: String,
     pub ty: TypeRef,
     pub default: Option<Expression>,
+    pub doc_comment: Option<String>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct RefinedType {
     pub base: Option<TypeRef>,
     pub constraints: Vec<TypeConstraint>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct TypeConstraint {
     pub name: String,
     pub value: Expression,
@@ -182,7 +185,7 @@ pub struct TypeConstraint {
 }
 
 /// A reference to a type, e.g. `String`, `List<Order>`, `Option<Int>`.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct TypeRef {
     pub name: String,
     pub type_args: Vec<TypeRef>,
@@ -207,23 +210,41 @@ impl TypeRef {
 // Service declarations
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct DependencyRef {
+    pub name: String,
+    pub notes: Option<String>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct ServicePolicy {
+    pub name: String,
+    pub entries: Vec<ConfigEntry>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct ServiceDecl {
     pub name: String,
     pub goal: Option<String>,
     pub constraints: Vec<Constraint>,
     pub depends_on: Vec<String>,
+    pub dependencies: Vec<DependencyRef>,
+    pub policies: Vec<ServicePolicy>,
     pub rpcs: Vec<RpcDecl>,
     pub budget: Option<BudgetBlock>,
     pub metrics: Vec<MetricDecl>,
     pub invariants: Vec<Expression>,
     pub applies: Vec<String>,
     pub visibility: Visibility,
+    pub doc_comment: Option<String>,
     pub span: Span,
 }
 
+
 /// A reusable mixin block.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct MixinDecl {
     pub name: String,
     pub constraints: Vec<Constraint>,
@@ -233,7 +254,7 @@ pub struct MixinDecl {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct MetricDecl {
     pub name: String,
     pub kind: MetricKind,
@@ -243,14 +264,14 @@ pub struct MetricDecl {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, serde::Serialize, specta::Type, PartialEq, Eq)]
 pub enum MetricKind {
     Counter,
     Gauge,
     Histogram,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct RpcDecl {
     pub name: String,
     pub inputs: Vec<Field>,
@@ -260,24 +281,25 @@ pub struct RpcDecl {
     pub errors: Vec<ErrorDecl>,
     pub constraints: Vec<Constraint>,
     pub tests: Vec<TestBlock>,
+    pub doc_comment: Option<String>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct ErrorDecl {
     pub name: String,
     pub fields: Vec<Field>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct Constraint {
     pub name: String,
     pub args: Vec<ConstraintArg>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct ConstraintArg {
     pub name: Option<String>,
     pub value: Expression,
@@ -288,13 +310,13 @@ pub struct ConstraintArg {
 // Test blocks
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct TestBlock {
     pub kind: TestKind,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub enum TestKind {
     Scenario {
         name: String,
@@ -312,7 +334,7 @@ pub enum TestKind {
     },
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct Quantifier {
     pub name: String,
     pub generator: Expression,
@@ -323,13 +345,13 @@ pub struct Quantifier {
 // Budget blocks
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct BudgetBlock {
     pub entries: Vec<BudgetEntry>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct BudgetEntry {
     pub key: String,
     pub value: Expression,
@@ -341,7 +363,7 @@ pub struct BudgetEntry {
 // ---------------------------------------------------------------------------
 
 /// Expressions used in constraints, pre/postconditions, and test assertions.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub enum Expression {
     /// A literal value: `42`, `"hello"`, `true`, `200ms`, `$0.10`
     Literal(Literal),
@@ -377,7 +399,7 @@ pub enum Expression {
     List(Vec<Expression>, Span),
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub enum Literal {
     Int(i64),
     Float(f64),
@@ -388,7 +410,7 @@ pub enum Literal {
     Null,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
 pub enum BinaryOperator {
     Eq,       // ==
     NotEq,    // !=
@@ -404,7 +426,7 @@ pub enum BinaryOperator {
     RangeExc, // ..<
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, specta::Type)]
 pub enum UnaryOperator {
     Not, // !
     Neg, // -
@@ -414,7 +436,7 @@ pub enum UnaryOperator {
 // Phase 1: Component, Pipeline, Workflow, Agent, Schema, Policy declarations
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct ComponentDecl {
     pub name: String,
     pub goal: Option<String>,
@@ -429,14 +451,14 @@ pub struct ComponentDecl {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct EventDecl {
     pub name: String,
     pub params: Vec<Field>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct PipelineDecl {
     pub name: String,
     pub goal: Option<String>,
@@ -449,21 +471,21 @@ pub struct PipelineDecl {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct ConfigEntry {
     pub key: String,
     pub value: Expression,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct PipelineStage {
     pub name: String,
     pub entries: Vec<ConfigEntry>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct WorkflowDecl {
     pub name: String,
     pub goal: Option<String>,
@@ -471,10 +493,14 @@ pub struct WorkflowDecl {
     pub transitions: Vec<WorkflowTransition>,
     pub constraints: Vec<Constraint>,
     pub tests: Vec<TestBlock>,
+    pub dependencies: Vec<DependencyRef>,
+    pub policies: Vec<ServicePolicy>,
+    pub invariants: Vec<Expression>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct WorkflowTransition {
     pub from: String,
     pub to: String,
@@ -485,14 +511,14 @@ pub struct WorkflowTransition {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct WorkflowTimeout {
     pub duration: Expression,
     pub target_state: String,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct AgentDecl {
     pub name: String,
     pub goal: Option<String>,
@@ -505,20 +531,20 @@ pub struct AgentDecl {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct AgentBoundary {
     pub kind: BoundaryKind,
     pub expr: Expression,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, serde::Serialize, specta::Type, PartialEq, Eq)]
 pub enum BoundaryKind {
     Must,
     Cannot,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct AgentTool {
     pub name: String,
     pub inputs: Vec<Field>,
@@ -526,7 +552,7 @@ pub struct AgentTool {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct SchemaDecl {
     pub name: String,
     pub goal: Option<String>,
@@ -538,30 +564,32 @@ pub struct SchemaDecl {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct EntityDecl {
     pub name: String,
     pub fields: Vec<EntityField>,
+    pub doc_comment: Option<String>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct EntityField {
     pub name: String,
     pub ty: TypeRef,
     pub default: Option<Expression>,
     pub decorators: Vec<Decorator>,
+    pub doc_comment: Option<String>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct Decorator {
     pub name: String,
     pub args: Vec<Expression>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct RelationDecl {
     pub lhs: String,
     pub rel_type: String,
@@ -570,7 +598,7 @@ pub struct RelationDecl {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct IndexDecl {
     pub entity: String,
     pub fields: Vec<String>,
@@ -578,7 +606,7 @@ pub struct IndexDecl {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct PolicyDecl {
     pub name: String,
     pub description: Option<String>,
@@ -587,14 +615,14 @@ pub struct PolicyDecl {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct PolicyRule {
     pub condition: String,
     pub clauses: Vec<PolicyClause>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub enum PolicyClause {
     Simple(String, Span),
     Action {
@@ -605,7 +633,7 @@ pub enum PolicyClause {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, specta::Type, serde::Deserialize,
 )]
 pub enum TrustLevel {
     Speculative,
@@ -620,3 +648,24 @@ impl std::fmt::Display for TrustLevel {
         write!(f, "{:?}", self)
     }
 }
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct TargetDependenciesDecl {
+    pub entries: Vec<TargetDependencyEntry>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct TargetDependencyEntry {
+    pub target: String,
+    pub packages: Vec<DependencyPackage>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct DependencyPackage {
+    pub name: String,
+    pub version: String,
+    pub span: Span,
+}
+

@@ -1,5 +1,5 @@
 /// A byte-offset span in source code, used for error reporting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
 pub struct Span {
     /// Byte offset of the start (inclusive).
     pub start: usize,

@@ -273,13 +273,22 @@ export function buildTasksFromIR(
   language: string
 ): BuildTask[] {
   const services = ir.services || [];
+  const declarations = ir.source_file?.declarations || [];
 
-  return services.map((svc: any, index: number) => ({
-    id: `codegen-${svc.name}`,
-    serviceName: svc.name,
-    taskType: "codegen" as const,
-    language,
-    dependsOn: [], // All services can build in parallel unless specified
-    specData: svc,
-  }));
+  return services.map((svc: any) => {
+    const decl = declarations.find(
+      (d: any) => d.Service && d.Service.name === svc.name
+    )?.Service;
+    const dependsOnServiceNames: string[] = decl?.depends_on || [];
+    const dependsOn = dependsOnServiceNames.map((name: string) => `codegen-${name}`);
+
+    return {
+      id: `codegen-${svc.name}`,
+      serviceName: svc.name,
+      taskType: "codegen" as const,
+      language,
+      dependsOn,
+      specData: svc,
+    };
+  });
 }

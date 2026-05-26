@@ -40,6 +40,7 @@ pub enum TokenKind {
     KwMixin,
     KwApply,
     KwConstraints,
+    KwTargetDependencies,
 
     // Type declarations
     KwType,
@@ -73,6 +74,10 @@ pub enum TokenKind {
     KwInvariants,
     KwErrors,
     KwDependsOn,
+    KwDependencies,
+    KwPolicies,
+
+
 
     // Component internals
     KwProps,
@@ -246,6 +251,7 @@ impl TokenKind {
             "as" => Some(TokenKind::KwAs),
             "version" => Some(TokenKind::KwVersion),
             "target" => Some(TokenKind::KwTarget),
+            "target_dependencies" => Some(TokenKind::KwTargetDependencies),
             "export" => Some(TokenKind::KwExport),
             "private" => Some(TokenKind::KwPrivate),
             "mixin" => Some(TokenKind::KwMixin),
@@ -259,13 +265,14 @@ impl TokenKind {
 
             // Block types
             "service" => Some(TokenKind::KwService),
-            "component" => Some(TokenKind::KwComponent),
-            "pipeline" => Some(TokenKind::KwPipeline),
+            // "component" => Some(TokenKind::KwComponent),
+            // "pipeline" => Some(TokenKind::KwPipeline),
             "workflow" => Some(TokenKind::KwWorkflow),
-            "agent" => Some(TokenKind::KwAgent),
+            "orchestrator" => Some(TokenKind::KwWorkflow),
+            // "agent" => Some(TokenKind::KwAgent),
             "schema" => Some(TokenKind::KwSchema),
             "policy" => Some(TokenKind::KwPolicy),
-            "contract" => Some(TokenKind::KwContract),
+            // "contract" => Some(TokenKind::KwContract),
             "constraint" => Some(TokenKind::KwConstraint),
             "budget" => Some(TokenKind::KwBudget),
             "evidence" => Some(TokenKind::KwEvidence),
@@ -284,26 +291,28 @@ impl TokenKind {
             "invariants" => Some(TokenKind::KwInvariants),
             "errors" => Some(TokenKind::KwErrors),
             "depends_on" => Some(TokenKind::KwDependsOn),
+            "dependencies" => Some(TokenKind::KwDependencies),
+            "policies" => Some(TokenKind::KwPolicies),
 
             // Component internals
-            "props" => Some(TokenKind::KwProps),
-            "state" => Some(TokenKind::KwState),
-            "events" => Some(TokenKind::KwEvents),
-            "slots" => Some(TokenKind::KwSlots),
+            // "props" => Some(TokenKind::KwProps),
+            // "state" => Some(TokenKind::KwState),
+            // "events" => Some(TokenKind::KwEvents),
+            // "slots" => Some(TokenKind::KwSlots),
 
             // Pipeline internals
-            "source" => Some(TokenKind::KwSource),
-            "stages" => Some(TokenKind::KwStages),
-            "sink" => Some(TokenKind::KwSink),
+            // "source" => Some(TokenKind::KwSource),
+            // "stages" => Some(TokenKind::KwStages),
+            // "sink" => Some(TokenKind::KwSink),
 
             // Workflow internals
             "states" => Some(TokenKind::KwStates),
             "transitions" => Some(TokenKind::KwTransitions),
-            "triggers" => Some(TokenKind::KwTriggers),
+            // "triggers" => Some(TokenKind::KwTriggers),
 
             // Policy internals
-            "rules" => Some(TokenKind::KwRules),
-            "schedule" => Some(TokenKind::KwSchedule),
+            // "rules" => Some(TokenKind::KwRules),
+            // "schedule" => Some(TokenKind::KwSchedule),
 
             // Schema & Agent boundary internals
             "entity" => Some(TokenKind::KwEntity),
@@ -312,15 +321,16 @@ impl TokenKind {
             "cannot" => Some(TokenKind::KwCannot),
             "must" => Some(TokenKind::KwMust),
 
+
             // Other section keywords
-            "style_guide" => Some(TokenKind::KwStyleGuide),
-            "visual_spec" => Some(TokenKind::KwVisualSpec),
-            "description" => Some(TokenKind::KwDescription),
-            "scope" => Some(TokenKind::KwScope),
-            "capabilities" => Some(TokenKind::KwCapabilities),
-            "boundaries" => Some(TokenKind::KwBoundaries),
-            "tools" => Some(TokenKind::KwTools),
-            "model" => Some(TokenKind::KwModel),
+            // "style_guide" => Some(TokenKind::KwStyleGuide),
+            // "visual_spec" => Some(TokenKind::KwVisualSpec),
+            // "description" => Some(TokenKind::KwDescription),
+            // "scope" => Some(TokenKind::KwScope),
+            // "capabilities" => Some(TokenKind::KwCapabilities),
+            // "boundaries" => Some(TokenKind::KwBoundaries),
+            // "tools" => Some(TokenKind::KwTools),
+            // "model" => Some(TokenKind::KwModel),
 
             // Test keywords
             "tests" => Some(TokenKind::KwTests),
@@ -355,12 +365,12 @@ impl TokenKind {
             "self" => Some(TokenKind::KwSelfKw),
 
             // Other keywords
-            "factory" => Some(TokenKind::KwFactory),
-            "define" => Some(TokenKind::KwDefine),
-            "visual" => Some(TokenKind::KwVisual),
-            "benchmark" => Some(TokenKind::KwBenchmark),
-            "chaos" => Some(TokenKind::KwChaos),
-            "security" => Some(TokenKind::KwSecurity),
+            // "factory" => Some(TokenKind::KwFactory),
+            // "define" => Some(TokenKind::KwDefine),
+            // "visual" => Some(TokenKind::KwVisual),
+            // "benchmark" => Some(TokenKind::KwBenchmark),
+            // "chaos" => Some(TokenKind::KwChaos),
+            // "security" => Some(TokenKind::KwSecurity),
 
             _ => None,
         }
@@ -374,6 +384,7 @@ impl TokenKind {
                 | TokenKind::KwAs
                 | TokenKind::KwVersion
                 | TokenKind::KwTarget
+                | TokenKind::KwTargetDependencies
                 | TokenKind::KwExport
                 | TokenKind::KwPrivate
                 | TokenKind::KwMixin
@@ -383,13 +394,13 @@ impl TokenKind {
                 | TokenKind::KwStruct
                 | TokenKind::KwEnum
                 | TokenKind::KwService
-                | TokenKind::KwComponent
-                | TokenKind::KwPipeline
+                // | TokenKind::KwComponent
+                // | TokenKind::KwPipeline
                 | TokenKind::KwWorkflow
-                | TokenKind::KwAgent
+                // | TokenKind::KwAgent
                 | TokenKind::KwSchema
                 | TokenKind::KwPolicy
-                | TokenKind::KwContract
+                // | TokenKind::KwContract
                 | TokenKind::KwConstraint
                 | TokenKind::KwBudget
                 | TokenKind::KwEvidence
@@ -406,31 +417,34 @@ impl TokenKind {
                 | TokenKind::KwInvariants
                 | TokenKind::KwErrors
                 | TokenKind::KwDependsOn
-                | TokenKind::KwProps
-                | TokenKind::KwState
-                | TokenKind::KwEvents
-                | TokenKind::KwSlots
-                | TokenKind::KwSource
-                | TokenKind::KwStages
-                | TokenKind::KwSink
+                | TokenKind::KwDependencies
+                | TokenKind::KwPolicies
+                // | TokenKind::KwProps
+                // | TokenKind::KwState
+                // | TokenKind::KwEvents
+                // | TokenKind::KwSlots
+                // | TokenKind::KwSource
+                // | TokenKind::KwStages
+                // | TokenKind::KwSink
                 | TokenKind::KwStates
                 | TokenKind::KwTransitions
-                | TokenKind::KwTriggers
-                | TokenKind::KwRules
-                | TokenKind::KwSchedule
+                // | TokenKind::KwTriggers
+                // | TokenKind::KwRules
+                // | TokenKind::KwSchedule
                 | TokenKind::KwEntity
                 | TokenKind::KwRelations
                 | TokenKind::KwIndexes
                 | TokenKind::KwCannot
                 | TokenKind::KwMust
-                | TokenKind::KwStyleGuide
-                | TokenKind::KwVisualSpec
-                | TokenKind::KwDescription
-                | TokenKind::KwScope
-                | TokenKind::KwCapabilities
-                | TokenKind::KwBoundaries
-                | TokenKind::KwTools
-                | TokenKind::KwModel
+
+                // | TokenKind::KwStyleGuide
+                // | TokenKind::KwVisualSpec
+                // | TokenKind::KwDescription
+                // | TokenKind::KwScope
+                // | TokenKind::KwCapabilities
+                // | TokenKind::KwBoundaries
+                // | TokenKind::KwTools
+                // | TokenKind::KwModel
                 | TokenKind::KwTests
                 | TokenKind::KwScenario
                 | TokenKind::KwProperty
@@ -457,12 +471,12 @@ impl TokenKind {
                 | TokenKind::KwErr
                 | TokenKind::KwOld
                 | TokenKind::KwSelfKw
-                | TokenKind::KwFactory
-                | TokenKind::KwDefine
-                | TokenKind::KwVisual
-                | TokenKind::KwBenchmark
-                | TokenKind::KwChaos
-                | TokenKind::KwSecurity
+                // | TokenKind::KwFactory
+                // | TokenKind::KwDefine
+                // | TokenKind::KwVisual
+                // | TokenKind::KwBenchmark
+                // | TokenKind::KwChaos
+                // | TokenKind::KwSecurity
         )
     }
 }

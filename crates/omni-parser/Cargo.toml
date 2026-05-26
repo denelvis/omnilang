@@ -10,6 +10,7 @@ description = "Lexer and parser for the OmniLang specification language"
 thiserror = { workspace = true }
 miette = { workspace = true }
 serde = { workspace = true }
+specta = { workspace = true }
 
 [dev-dependencies]
 insta = { version = "1", features = ["yaml"] }
