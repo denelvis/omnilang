@@ -87,6 +87,16 @@ fn rust_type_mappings() -> Vec<TypeMapping> {
             target_type: "()".into(),
             import_path: None,
         },
+        TypeMapping {
+            omni_type: "Email".into(),
+            target_type: "String".into(),
+            import_path: None,
+        },
+        TypeMapping {
+            omni_type: "URL".into(),
+            target_type: "String".into(),
+            import_path: None,
+        },
     ]
 }
 
@@ -152,6 +162,16 @@ fn python_type_mappings() -> Vec<TypeMapping> {
             target_type: "None".into(),
             import_path: None,
         },
+        TypeMapping {
+            omni_type: "Email".into(),
+            target_type: "str".into(),
+            import_path: None,
+        },
+        TypeMapping {
+            omni_type: "URL".into(),
+            target_type: "str".into(),
+            import_path: None,
+        },
     ]
 }
 
@@ -215,6 +235,16 @@ fn typescript_type_mappings() -> Vec<TypeMapping> {
         TypeMapping {
             omni_type: "Void".into(),
             target_type: "void".into(),
+            import_path: None,
+        },
+        TypeMapping {
+            omni_type: "Email".into(),
+            target_type: "string".into(),
+            import_path: None,
+        },
+        TypeMapping {
+            omni_type: "URL".into(),
+            target_type: "string".into(),
             import_path: None,
         },
     ]

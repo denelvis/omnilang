@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚡ OmniLang Playground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  
+  <style>
+    :root {
+      --bg-gradient: radial-gradient(circle at 50% 50%, #0f172a 0%, #020617 100%);
+      --glass-bg: rgba(30, 41, 59, 0.45);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --glass-glow: rgba(99, 102, 241, 0.15);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.2);
+      --neon-blue: #06b6d4;
+      --terminal-bg: #090d16;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.5rem 3rem;
+      border-bottom: 1px solid var(--glass-border);
+      backdrop-filter: blur(12px);
+      background: rgba(15, 23, 42, 0.3);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--neon-blue) 100%);
+      padding: 0.5rem;
+      border-radius: 8px;
+      font-weight: 700;
+      color: #fff;
+      font-size: 1.25rem;
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .example-select {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: var(--text-main);
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      outline: none;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    .example-select:hover {
+      border-color: var(--primary);
+    }
+
+    .btn-compile {
+      background: linear-gradient(135deg, var(--accent) 0%, #059669 100%);
+      color: #fff;
+      border: none;
+      padding: 0.5rem 1.5rem;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 0 15px var(--accent-glow);
+      transition: all 0.2s;
+    }
+
+    .btn-compile:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.45);
+    }
+
+    .btn-compile:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 1.5rem 3rem;
+      gap: 2rem;
+      height: calc(100vh - 80px);
+      min-height: 500px;
+    }
+
+    .panel {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: box-shadow 0.3s;
+    }
+
+    .panel:hover {
+      box-shadow: 0 8px 32px 0 rgba(99, 102, 241, 0.05);
+    }
+
+    .panel-header {
+      background: rgba(15, 23, 42, 0.5);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .panel-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .editor-container {
+      flex: 1;
+      position: relative;
+    }
+
+    textarea.editor {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.95rem;
+      padding: 1.5rem;
+      resize: none;
+      outline: none;
+      line-height: 1.6;
+    }
+
+    .tabs-header {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-family: inherit;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+    }
+
+    .tab-content {
+      flex: 1;
+      overflow: auto;
+      display: none;
+      background: var(--terminal-bg);
+      position: relative;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    pre.code-view {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      padding: 1.5rem;
+      line-height: 1.6;
+      color: #cbd5e1;
+      white-space: pre-wrap;
+    }
+
+    /* Terminal logs */
+    .terminal-logs {
+      color: #38bdf8;
+    }
+
+    .terminal-line {
+      margin-bottom: 0.5rem;
+    }
+
+    .terminal-line.success {
+      color: var(--accent);
+    }
+
+    .terminal-line.warning {
+      color: #f59e0b;
+    }
+
+    .terminal-line.error {
+      color: #ef4444;
+    }
+
+    /* Loading overlay */
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 1rem;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .loading-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(99, 102, 241, 0.1);
+      border-top: 4px solid var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      font-weight: 500;
+      color: var(--text-main);
+      font-size: 1rem;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <div class="logo-badge">⚡ OMNI</div>
+      <h1>Playground</h1>
+    </div>
+    <div class="header-actions">
+      <select id="exampleSelector" class="example-select">
+        <option value="billing">💳 Billing & Invariants</option>
+        <option value="self_correction">🔄 Self-Correction Test</option>
+        <option value="ordering">📦 Full-Stack E-Commerce Spec</option>
+        <option value="booking">✈️ Booking Flow (Saga / Orchestrator)</option>
+      </select>
+      <button id="compileBtn" class="btn-compile">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        Compile & Verify
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left Spec Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Specification (.omni)</span>
+      </div>
+      <div class="editor-container">
+        <textarea id="editor" class="editor" spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <!-- Right Outputs Panel -->
+    <div class="panel" style="position: relative;">
+      <!-- Loading Overlay -->
+      <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Generating & Verifying...</div>
+      </div>
+
+      <div class="panel-header">
+        <div class="tabs-header">
+          <button class="tab-btn active" onclick="switchTab('ts')">TypeScript</button>
+          <button class="tab-btn" id="workflowTabBtn" onclick="switchTab('workflow')">Workflow Diagram</button>
+          <button class="tab-btn" onclick="switchTab('tests')">Jest Tests</button>
+          <button class="tab-btn" onclick="switchTab('db')">Database Schema</button>
+          <button class="tab-btn" onclick="switchTab('logs')">Terminal Logs</button>
+        </div>
+      </div>
+
+      <!-- Tab Content Area -->
+      <div id="tab-ts" class="tab-content active">
+        <pre class="code-view"><code id="code-ts">// Generated service code will appear here after compilation</code></pre>
+      </div>
+      <div id="tab-workflow" class="tab-content" style="background: #0b0f19; padding: 2rem;">
+        <div id="mermaid-container" style="display: flex; justify-content: center; align-items: center; width: 100%; min-height: 300px; background: rgba(15, 23, 42, 0.4); border-radius: 8px; border: 1px solid var(--glass-border); padding: 1rem; overflow: auto;">
+          <div id="no-workflow-msg" style="color: var(--text-muted); font-size: 1rem; text-align: center;">
+            No orchestrator/workflow defined in this spec. Compile an orchestrator spec (e.g. Booking Flow) to view its transition diagram.
+          </div>
+        </div>
+      </div>
+      <div id="tab-tests" class="tab-content">
+        <pre class="code-view"><code id="code-tests">// Generated Jest tests code will appear here</code></pre>
+      </div>
+      <div id="tab-db" class="tab-content">
+        <pre class="code-view"><code id="code-db">// Generated Database Schema (Prisma/SQL) will appear here</code></pre>
+      </div>
+      <div id="tab-logs" class="tab-content">
+        <pre class="code-view terminal-logs"><code id="code-logs">Playground initialized. Select an example and click "Compile & Verify" to build!</code></pre>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    // Spec examples templates
+    const specs = {
+      billing: `module acme.billing
+
+type AccountId = String
+
+type Account = struct {
+  id: AccountId
+  balance: Money
+  status: String
+}
+
+schema BillingDB {
+  goal: "Manage billing accounts in relational database"
+  target: postgresql
+
+  entity Account {
+    id: AccountId @primary
+    balance: Money
+    status: String
+  }
+}
+
+service PaymentService {
+  goal: "Handle billing account deposits, charges, and refunds safely"
+
+  /// Deposits money into the account
+  operation Deposit(accountId: AccountId, amount: Money) -> Money {
+    preconditions:
+      - "Deposit amount must be strictly greater than zero"
+    postconditions:
+      - "New balance must increase exactly by the deposit amount"
+  }
+
+  /// Charges the account for a purchase
+  operation Charge(accountId: AccountId, amount: Money) -> Bool {
+    preconditions:
+      - "Account balance must be greater than or equal to the charge amount"
+      - "Account must be in Active status"
+    postconditions:
+      - "If the charge is successful, the balance is decreased by the charge amount"
+  }
+
+  invariants:
+    - balance_safety: "Account.balance >= 0"
+}`,
+      self_correction: `module acme.testing.self_correction
+
+service SelfCorrectingService {
+  goal: "Test self correction capabilities of the generator."
+
+  operation Process {
+    inputs:
+      input_val: String
+    outputs:
+      result: String
+    tests:
+      - scenario: "Process successfully"
+        expect: result == "ok"
+  }
+}`,
+      ordering: `module acme.ordering
+
+type UserId = String
+type ProductId = String
+type OrderId = String
+type OrderItemId = String
+
+type OrderItem = struct {
+  id: OrderItemId
+  orderId: OrderId
+  productId: ProductId
+  qty: Int
+  price: Money
+}
+
+type Order = struct {
+  id: OrderId
+  userId: UserId
+  total: Money
+  status: String
+}
+
+schema OrderDB {
+  goal: "Manage relational data for ordering system"
+  target: postgresql
+
+  entity User {
+    id: UserId @primary
+    name: String
+    status: String
+  }
+
+  entity Product {
+    id: ProductId @primary
+    name: String
+    price: Money
+  }
+
+  entity Order {
+    id: OrderId @primary
+    userId: UserId @indexed
+    total: Money
+    status: String
+  }
+
+  entity OrderItem {
+    id: OrderItemId @primary
+    orderId: OrderId @indexed
+    productId: ProductId
+    qty: Int
+    price: Money
+  }
+
+  relations:
+    - User has_many Order
+    - Order has_many OrderItem
+}
+
+service OrderService {
+  goal: "Manage customer order life cycle and apply discount policies"
+
+  operation CreateOrder(userId: UserId, items: List<OrderItem>) -> Order {
+    preconditions:
+      - "User must exist and have an Active status"
+      - "At least one item must be present in the order"
+      - "All product quantities must be strictly positive"
+    postconditions:
+      - "Order total must be calculated as sum of item prices times quantities"
+      - "Order status must start as Created"
+  }
+
+  operation ApplyPromoCode(orderId: OrderId, code: String) -> Order {
+    preconditions:
+      - "Order must exist and be in Created status"
+      - "Promo code must be valid"
+    postconditions:
+      - "If order total exceeds $100 and user is VIP, apply a 10% discount"
+  }
+
+  invariants:
+    - total_non_negative: "Order.total >= 0"
+    - vip_discount_policy: "VIP users get a 10% discount on orders exceeding $100"
+}`,
+      booking: `module acme.booking
+
+orchestrator BookingFlow {
+  goal: "Process flight and hotel booking saga with safety invariants"
+
+  states: [ Created, FlightBooked, HotelBooked, Paid, Cancelled, Failed, AnyStateExceptPaid ]
+
+  transitions:
+    - Created -> FlightBooked -> HotelBooked -> Paid
+    - AnyStateExceptPaid -> Cancelled [on: Timeout or UserAbort]
+
+  dependencies:
+    - FlightService (gRPC API)
+    - HotelService (gRPC API)
+    - PaymentService (HTTP API)
+
+  policies:
+    - enrich_user_loyalty:
+        action: "enrich"
+        rule: "vip"
+
+  invariants:
+    - money_safety: "Charging money in Paid state occurs ONLY after successful FlightBooked and HotelBooked"
+    - saga_compensation: "If HotelBooked fails, call FlightService.Release"
+
+  tests:
+    - scenario: "Hotel reservation fails"
+      given:
+        - HotelBooked == false
+      when:
+        - HotelService.Book fails
+      expect:
+        - FlightService.Release called
+        - state == Cancelled
+}`
+    };
+
+    const editor = document.getElementById('editor');
+    const exampleSelector = document.getElementById('exampleSelector');
+    const compileBtn = document.getElementById('compileBtn');
+    const overlay = document.getElementById('loadingOverlay');
+
+    // Load initial example
+    editor.value = specs.billing;
+
+    exampleSelector.addEventListener('change', (e) => {
+      editor.value = specs[e.target.value];
+    });
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      
+      const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.textContent.toLowerCase().includes(tabId === 'ts' ? 'typescript' : tabId === 'db' ? 'database' : tabId));
+      if (targetBtn) targetBtn.classList.add('active');
+      
+      const targetContent = document.getElementById(`tab-${tabId}`);
+      if (targetContent) targetContent.classList.add('active');
+    }
+
+    // Initialize Mermaid
+    try {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        securityLevel: 'loose',
+        state: {
+          useMaxWidth: true,
+          htmlLabels: true
+        }
+      });
+    } catch (e) {
+      console.warn("Failed to initialize Mermaid:", e);
+    }
+
+    compileBtn.addEventListener('click', async () => {
+      compileBtn.disabled = true;
+      overlay.classList.add('active');
+      
+      const logsCode = document.getElementById('code-logs');
+      logsCode.innerHTML = "Submitting spec compile request...";
+      
+      try {
+        const response = await fetch('/api/compile', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ spec: editor.value })
+        });
+        
+        const result = await response.json();
+        
+        // Render logs
+        logsCode.innerHTML = formatLogs(result.logs || "No compilation logs returned.");
+        
+        const container = document.getElementById('mermaid-container');
+        if (result.success) {
+          // Render outputs
+          let tsFile = result.files.find(f => f.path.endsWith('.ts') && !f.path.includes('.test.ts') && !f.path.includes('StateMachine') && !f.path.endsWith('types.ts'));
+          if (!tsFile) {
+            tsFile = result.files.find(f => f.path.endsWith('StateMachine.ts'));
+          }
+          if (!tsFile) {
+            tsFile = result.files.find(f => f.path.endsWith('.ts') && !f.path.includes('.test.ts'));
+          }
+          const testFile = result.files.find(f => f.path.includes('.test.ts'));
+          const prismaFile = result.files.find(f => f.path.endsWith('.prisma') || f.path.endsWith('.sql'));
+          const mmdFile = result.files.find(f => f.path.endsWith('.mmd'));
+
+          document.getElementById('code-ts').textContent = tsFile ? tsFile.content : "// No TypeScript service file generated.";
+          document.getElementById('code-tests').textContent = testFile ? testFile.content : "// No test files generated.";
+          document.getElementById('code-db').textContent = prismaFile ? prismaFile.content : "// No database schema generated.";
+          
+          if (mmdFile) {
+            container.innerHTML = `<pre class="mermaid">${escapeHtml(mmdFile.content)}</pre>`;
+            try {
+              await mermaid.run({
+                nodes: [container.querySelector('.mermaid')]
+              });
+            } catch (err) {
+              console.error("Mermaid rendering error:", err);
+              // Fallback to plain text if rendering failed
+              container.innerHTML = `<pre class="code-view" style="color: #ef4444; width: 100%;">${escapeHtml(err.message || err)}\n\n${escapeHtml(mmdFile.content)}</pre>`;
+            }
+          } else {
+            container.innerHTML = `
+              <div id="no-workflow-msg" style="color: var(--text-muted); font-size: 1rem; text-align: center;">
+                No orchestrator/workflow defined in this spec. Compile an orchestrator spec (e.g. Booking Flow) to view its transition diagram.
+              </div>
+            `;
+          }
+          
+          // Switch to Workflow tab if a workflow was compiled, otherwise TS
+          if (mmdFile) {
+            switchTab('workflow');
+          } else {
+            switchTab('ts');
+          }
+        } else {
+          document.getElementById('code-ts').textContent = "// Compilation Failed.";
+          document.getElementById('code-tests').textContent = "// Compilation Failed.";
+          document.getElementById('code-db').textContent = "// Compilation Failed.";
+          container.innerHTML = `
+            <div id="no-workflow-msg" style="color: var(--text-muted); font-size: 1rem; text-align: center;">
+              Compilation failed. Fix error in logs to view diagram.
+            </div>
+          `;
+          switchTab('logs');
+        }
+      } catch (err) {
+        logsCode.textContent = `Error calling compiler API: ${err.message}`;
+        switchTab('logs');
+      } finally {
+        compileBtn.disabled = false;
+        overlay.classList.remove('active');
+      }
+    });
+
+    function formatLogs(logs) {
+      return logs.split('\n').map(line => {
+        let className = 'terminal-line';
+        if (line.includes('✓') || line.includes('passed') || line.includes('successfully')) {
+          className += ' success';
+        } else if (line.includes('warning:')) {
+          className += ' warning';
+        } else if (line.includes('error:') || line.includes('❌') || line.includes('failed')) {
+          className += ' error';
+        }
+        return `<div class="${className}">${escapeHtml(line)}</div>`;
+      }).join('');
+    }
+
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { SpecIR, ServiceDecl, TypeDecl, TypeRef } from "../types";
+import { SpecIR, ServiceDecl, TypeDecl, TypeRef, TypeMapping } from "../types";
 
 export function getSystemPrompt(target: string = "typescript", promptAdditions: string = ""): string {
   if (target !== "typescript") {
@@ -31,7 +31,7 @@ export function getUserPrompt(serviceName: string, ir: SpecIR, target: string = 
       const doc = t.doc_comment
         ? t.doc_comment.split("\n").map((line: string) => `/// ${line}`).join("\n") + "\n"
         : "";
-      return `${doc}${formatTypeDecl(t)}`;
+      return `${doc}${formatTypeDecl(t, ir.type_mappings)}`;
     })
     .join("\n\n");
 
@@ -95,7 +95,14 @@ function getTypeScriptSystemPrompt(promptAdditions: string = ""): string {
   return systemPrompt;
 }
 
-function formatTypeRef(ref: TypeRef): string {
+function formatTypeRef(ref: TypeRef, typeMappings?: TypeMapping[]): string {
+  if (typeMappings) {
+    const mapping = typeMappings.find(m => m.omni_type === ref.name);
+    if (mapping) {
+      return mapping.target_type;
+    }
+  }
+
   if (ref.name === "String" || ref.name === "Email" || ref.name === "URL" || ref.name === "UUID") {
     return "string";
   }
@@ -115,35 +122,35 @@ function formatTypeRef(ref: TypeRef): string {
     return "void";
   }
   if (ref.name === "List") {
-    const arg = ref.type_args[0] ? formatTypeRef(ref.type_args[0]) : "any";
+    const arg = ref.type_args[0] ? formatTypeRef(ref.type_args[0], typeMappings) : "any";
     return `${arg}[]`;
   }
   if (ref.name === "Option") {
-    const arg = ref.type_args[0] ? formatTypeRef(ref.type_args[0]) : "any";
+    const arg = ref.type_args[0] ? formatTypeRef(ref.type_args[0], typeMappings) : "any";
     return `${arg} | null`;
   }
 
   // Handle generic type arguments
   if (ref.type_args.length > 0) {
-    const args = ref.type_args.map(formatTypeRef).join(", ");
+    const args = ref.type_args.map(arg => formatTypeRef(arg, typeMappings)).join(", ");
     return `${ref.name}<${args}>`;
   }
   
   return ref.name;
 }
 
-export function formatTypeDecl(t: TypeDecl): string {
+export function formatTypeDecl(t: TypeDecl, typeMappings?: TypeMapping[]): string {
   const name = t.name;
   const kind = t.kind;
 
   if ("Alias" in kind) {
-    return `export type ${name} = ${formatTypeRef(kind.Alias)};`;
+    return `export type ${name} = ${formatTypeRef(kind.Alias, typeMappings)};`;
   }
 
   if ("Struct" in kind) {
     const fields = kind.Struct.fields.map(f => {
       const doc = f.doc_comment ? `  /** ${f.doc_comment} */\n` : "";
-      return `${doc}  ${f.name}: ${formatTypeRef(f.ty)};`;
+      return `${doc}  ${f.name}: ${formatTypeRef(f.ty, typeMappings)};`;
     }).join("\n");
     return `export interface ${name} {\n${fields}\n}`;
   }
@@ -156,7 +163,7 @@ export function formatTypeDecl(t: TypeDecl): string {
   }
 
   if ("Refined" in kind) {
-    const base = kind.Refined.base ? formatTypeRef(kind.Refined.base) : "any";
+    const base = kind.Refined.base ? formatTypeRef(kind.Refined.base, typeMappings) : "any";
     return `export type ${name} = ${base}; // Refined type with constraints`;
   }
 

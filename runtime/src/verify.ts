@@ -13,10 +13,12 @@ export interface VerificationReport {
 export class VerificationRunner {
   private outputDir: string;
   private target: string;
+  private files?: string[];
 
-  constructor(outputDir: string, target: string = "typescript") {
+  constructor(outputDir: string, target: string = "typescript", files?: string[]) {
     this.outputDir = outputDir;
     this.target = target;
+    this.files = files;
   }
 
   public verify(): VerificationReport {
@@ -36,9 +38,22 @@ export class VerificationRunner {
 
     // 1. Run tsc --noEmit
     const tscBin = path.join(this.outputDir, "node_modules", ".bin", "tsc");
+    const tscArgs = ["--noEmit"];
+    if (this.files && this.files.length > 0) {
+      tscArgs.push(
+        ...this.files,
+        "--target", "ES2022",
+        "--module", "Node16",
+        "--moduleResolution", "Node16",
+        "--strict",
+        "--esModuleInterop",
+        "--skipLibCheck"
+      );
+    }
+    
     const tscRes = fs.existsSync(tscBin)
-      ? spawnSync(tscBin, ["--noEmit"], { cwd: this.outputDir, stdio: "pipe", shell: true })
-      : spawnSync("npx", ["-p", "typescript", "tsc", "--noEmit"], {
+      ? spawnSync(tscBin, tscArgs, { cwd: this.outputDir, stdio: "pipe", shell: true })
+      : spawnSync("npx", ["-p", "typescript", "tsc", ...tscArgs], {
           cwd: this.outputDir,
           stdio: "pipe",
           shell: true,
@@ -56,7 +71,16 @@ export class VerificationRunner {
 
     // 2. Run jest tests
     console.log(pc.yellow("     Running Jest tests..."));
-    const jestRes = spawnSync("npx", ["jest", "--passWithNoTests"], {
+    
+    const jestArgs = ["jest", "--passWithNoTests"];
+    if (this.files && this.files.length > 0) {
+      const testFiles = this.files.filter(f => f.endsWith(".test.ts") || f.endsWith(".spec.ts"));
+      if (testFiles.length > 0) {
+        jestArgs.push(...testFiles);
+      }
+    }
+
+    const jestRes = spawnSync("npx", jestArgs, {
       cwd: this.outputDir,
       stdio: "pipe",
       shell: true,
