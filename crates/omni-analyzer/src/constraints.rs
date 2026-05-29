@@ -1,6 +1,6 @@
 //! Constraint validation: detect conflicts and validate references.
 
-use omni_parser::ast::{Declaration, SourceFile, Expression, Literal};
+use omni_parser::ast::{Declaration, Expression, Literal, SourceFile};
 
 use crate::{Diagnostic, DiagnosticKind};
 
@@ -182,9 +182,22 @@ service API {
   }
 }"#,
         );
-        let warnings: Vec<_> = diags.iter().filter(|d| d.kind == DiagnosticKind::Warning).collect();
-        assert!(warnings.iter().any(|d| d.message.contains("Invariant 'Service must always be active'")));
-        assert!(warnings.iter().any(|d| d.message.contains("Precondition 'name must not be empty'")));
-        assert!(warnings.iter().any(|d| d.message.contains("Postcondition 'return message contains name'")));
+        let warnings: Vec<_> = diags
+            .iter()
+            .filter(|d| d.kind == DiagnosticKind::Warning)
+            .collect();
+        assert!(warnings.iter().any(|d| {
+            d.message
+                .contains("Invariant 'Service must always be active'")
+        }));
+        assert!(
+            warnings
+                .iter()
+                .any(|d| d.message.contains("Precondition 'name must not be empty'"))
+        );
+        assert!(warnings.iter().any(|d| {
+            d.message
+                .contains("Postcondition 'return message contains name'")
+        }));
     }
 }

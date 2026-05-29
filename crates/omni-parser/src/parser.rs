@@ -20,12 +20,7 @@ impl Parser {
         // Filter out line and block comments, but keep DocComment for AST doc comment support
         let tokens: Vec<Token> = tokens
             .into_iter()
-            .filter(|t| {
-                !matches!(
-                    t.kind,
-                    TokenKind::LineComment | TokenKind::BlockComment
-                )
-            })
+            .filter(|t| !matches!(t.kind, TokenKind::LineComment | TokenKind::BlockComment))
             .collect();
 
         Self {
@@ -740,7 +735,6 @@ impl Parser {
         })
     }
 
-
     fn parse_operation_decl(&mut self) -> Option<OperationDecl> {
         let start = self.current_span();
         self.advance(); // consume 'operation'
@@ -1325,7 +1319,6 @@ impl Parser {
         })
     }
 
-
     // ── Expression lists ─────────────────────────────
 
     fn parse_expression_list(&mut self) -> Vec<Expression> {
@@ -1333,7 +1326,9 @@ impl Parser {
 
         while self.check(TokenKind::Minus) {
             self.advance(); // consume '-'
-            if self.check(TokenKind::Ident) && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon) {
+            if self.check(TokenKind::Ident)
+                && self.peek_at(1).map(|t| t.kind) == Some(TokenKind::Colon)
+            {
                 let start = self.current_span();
                 let label_tok = self.advance();
                 self.expect(TokenKind::Colon);
@@ -1352,7 +1347,6 @@ impl Parser {
 
         exprs
     }
-
 
     // ── Expression parsing (simplified Pratt parser) ─
 
@@ -2157,7 +2151,9 @@ impl Parser {
                 TokenKind::KwTransitions => {
                     self.advance();
                     self.expect(TokenKind::Colon);
-                    while (self.check(TokenKind::Ident) || self.check(TokenKind::Star) || self.check(TokenKind::Minus))
+                    while (self.check(TokenKind::Ident)
+                        || self.check(TokenKind::Star)
+                        || self.check(TokenKind::Minus))
                         && !self.is_section_keyword(self.peek())
                         && !self.is_at_end()
                     {
@@ -2225,7 +2221,10 @@ impl Parser {
                                 self.expect(TokenKind::Colon);
                                 if key == "on" {
                                     let mut trigger_text = String::new();
-                                    while !self.check(TokenKind::BracketClose) && !self.check(TokenKind::Comma) && !self.is_at_end() {
+                                    while !self.check(TokenKind::BracketClose)
+                                        && !self.check(TokenKind::Comma)
+                                        && !self.is_at_end()
+                                    {
                                         let tok = self.advance();
                                         if !trigger_text.is_empty() {
                                             trigger_text.push(' ');
@@ -2314,7 +2313,6 @@ impl Parser {
             span: start.merge(end),
         })
     }
-
 
     fn parse_agent_decl(&mut self) -> Option<AgentDecl> {
         let start = self.current_span();
@@ -2902,7 +2900,7 @@ impl Parser {
                         // Strip quotes
                         let s = name_tok.text;
                         if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-                            s[1..s.len()-1].to_string()
+                            s[1..s.len() - 1].to_string()
                         } else {
                             s
                         }
@@ -2929,7 +2927,7 @@ impl Parser {
                         let ver_tok = self.advance();
                         let s = ver_tok.text;
                         if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-                            s[1..s.len()-1].to_string()
+                            s[1..s.len() - 1].to_string()
                         } else {
                             s
                         }
@@ -3209,7 +3207,7 @@ service GreetService {
         );
         if let Declaration::Service(s) = &file.declarations[0] {
             assert_eq!(s.operations.len(), 3);
-            
+
             // First Operation: GreetShorthand(name: String) -> String
             let op1 = &s.operations[0];
             assert_eq!(op1.name, "GreetShorthand");
@@ -3217,7 +3215,7 @@ service GreetService {
             assert_eq!(op1.inputs[0].name, "name");
             assert_eq!(op1.outputs.len(), 1);
             assert_eq!(op1.outputs[0].name, "result");
-            
+
             // Second Operation: GreetShorthandWithBody(name: String) -> String { preconditions: - name != "" }
             let op2 = &s.operations[1];
             assert_eq!(op2.name, "GreetShorthandWithBody");
@@ -3226,7 +3224,7 @@ service GreetService {
             assert_eq!(op2.outputs.len(), 1);
             assert_eq!(op2.outputs[0].name, "result");
             assert_eq!(op2.preconditions.len(), 1);
-            
+
             // Third Operation: GreetNoReturn(name: String)
             let op3 = &s.operations[2];
             assert_eq!(op3.name, "GreetNoReturn");
@@ -3320,7 +3318,6 @@ service Checkout {
         }
     }
 
-
     #[test]
     fn parse_schema_decl_test() {
         let file = parse_ok(
@@ -3359,7 +3356,6 @@ schema ECommerceDB {
             panic!("expected schema declaration");
         }
     }
-
 
     #[test]
     fn parse_union_intersection_option_test() {
@@ -3545,19 +3541,25 @@ schema MySchema {
 }"#,
         );
         assert_eq!(file.declarations.len(), 3);
-        
+
         // 1. Service GreetService and Operation Greet
         if let Declaration::Service(s) = &file.declarations[0] {
             assert_eq!(s.name, "GreetService");
-            assert_eq!(s.doc_comment, Some("This is a doc comment\nfor GreetService".to_string()));
-            
+            assert_eq!(
+                s.doc_comment,
+                Some("This is a doc comment\nfor GreetService".to_string())
+            );
+
             let op = &s.operations[0];
             assert_eq!(op.name, "Greet");
-            assert_eq!(op.doc_comment, Some("This is a doc comment\nfor Greet method".to_string()));
+            assert_eq!(
+                op.doc_comment,
+                Some("This is a doc comment\nfor Greet method".to_string())
+            );
         } else {
             panic!("Expected Service declaration");
         }
-        
+
         // 2. Type MyType
         if let Declaration::Type(t) = &file.declarations[1] {
             assert_eq!(t.name, "MyType");
@@ -3565,19 +3567,25 @@ schema MySchema {
         } else {
             panic!("Expected Type declaration");
         }
-        
+
         // 3. Schema MySchema, Entity MyEntity, Field id
         if let Declaration::Schema(s) = &file.declarations[2] {
             assert_eq!(s.name, "MySchema");
             assert_eq!(s.entities.len(), 1);
-            
+
             let entity = &s.entities[0];
             assert_eq!(entity.name, "MyEntity");
-            assert_eq!(entity.doc_comment, Some("Doc comment for MyEntity".to_string()));
-            
+            assert_eq!(
+                entity.doc_comment,
+                Some("Doc comment for MyEntity".to_string())
+            );
+
             let field = &entity.fields[0];
             assert_eq!(field.name, "id");
-            assert_eq!(field.doc_comment, Some("Doc comment for id field".to_string()));
+            assert_eq!(
+                field.doc_comment,
+                Some("Doc comment for id field".to_string())
+            );
         } else {
             panic!("Expected Schema declaration");
         }
@@ -3607,7 +3615,7 @@ service Checkout {
             assert_eq!(s.dependencies[0].notes, Some("DB".to_string()));
             assert_eq!(s.dependencies[1].name, "LoyaltyService");
             assert_eq!(s.dependencies[1].notes, Some("gRPC API".to_string()));
-            
+
             assert_eq!(s.policies.len(), 1);
             assert_eq!(s.policies[0].name, "enrich_user_loyalty");
             assert_eq!(s.policies[0].entries.len(), 2);
@@ -3615,7 +3623,10 @@ service Checkout {
             assert_eq!(s.policies[0].entries[1].key, "rule");
 
             assert_eq!(s.invariants.len(), 1);
-            if let Expression::BinaryOp { left, op, right, .. } = &s.invariants[0] {
+            if let Expression::BinaryOp {
+                left, op, right, ..
+            } = &s.invariants[0]
+            {
                 assert_eq!(op, &BinaryOperator::Eq);
                 if let Expression::Identifier(name, _) = &**left {
                     assert_eq!(name, "money_safety");
@@ -3650,18 +3661,22 @@ orchestrator BookingFlow {
             assert_eq!(w.name, "BookingFlow");
             assert_eq!(w.states, vec!["Created", "Paid", "Cancelled"]);
             assert_eq!(w.transitions.len(), 2);
-            
+
             assert_eq!(w.transitions[0].from, "Created");
             assert_eq!(w.transitions[0].to, "Paid");
-            assert_eq!(w.transitions[0].trigger, Some("Timeout or UserAbort".to_string()));
-            
+            assert_eq!(
+                w.transitions[0].trigger,
+                Some("Timeout or UserAbort".to_string())
+            );
+
             assert_eq!(w.transitions[1].from, "Paid");
             assert_eq!(w.transitions[1].to, "Cancelled");
-            assert_eq!(w.transitions[1].trigger, Some("Timeout or UserAbort".to_string()));
+            assert_eq!(
+                w.transitions[1].trigger,
+                Some("Timeout or UserAbort".to_string())
+            );
         } else {
             panic!("expected workflow declaration");
         }
     }
 }
-
-

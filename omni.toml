@@ -1,6 +1,6 @@
 [package]
 name = "omni-lang"
-version = "0.10.0"
+version = "0.11.0"
 description = "OmniLang — the specification language for AI-native development"
 
 [budget]

@@ -1,8 +1,9 @@
 import { LLMProvider } from "./base";
 import { AnthropicProvider } from "./anthropic";
 import { OllamaProvider } from "./ollama";
+import { LlamaCppProvider } from "./llamacpp";
 
-export { LLMProvider, AnthropicProvider, OllamaProvider };
+export { LLMProvider, AnthropicProvider, OllamaProvider, LlamaCppProvider };
 
 export function getLLMProvider(providerName?: string): LLMProvider {
   const name = providerName || process.env.OMNI_LLM_PROVIDER || "anthropic";
@@ -10,6 +11,11 @@ export function getLLMProvider(providerName?: string): LLMProvider {
   switch (name.toLowerCase()) {
     case "ollama":
       return new OllamaProvider();
+    case "llamacpp":
+    case "llama.cpp":
+    case "ollamacpp":
+    case "ollama.cpp":
+      return new LlamaCppProvider();
     case "anthropic":
     default:
       return new AnthropicProvider();

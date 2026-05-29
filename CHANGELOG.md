@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-05-29
+
+### Added
+
+- **Ollama / Llama.cpp Provider Support** (Step 6):
+  - Added `LlamaCppProvider` supporting OpenAI-compatible chat completions and native `/completion` fallback endpoints.
+  - Registered `llamacpp`, `llama.cpp`, `ollamacpp`, and `ollama.cpp` LLM provider options.
+
+- **Multi-Target Code Generation** (Rust, Python & Go):
+  - Enabled code generation, directory initialization, and testing for Rust, Python, and Go targets.
+  - Implemented automatic packages config generation (`Cargo.toml` for Rust, `__init__.py` modules for Python, `go.mod` for Go).
+  - Prompts formatting for Rust structs/enums, Python dataclasses, and Go structs with JSON tag mapping.
+
+### Fixed
+
+- **Stabilized Mock Generator Target Detection**:
+  - Robustified language detection logic in mock LLM provider to match exact role header strings instead of fragile substring matching, preventing compilation errors and false-matches caused by leftover error logs in `.omni-cache/traces/retries.json`.
+
 ## [0.10.0] - 2026-05-25
 
 ### Added

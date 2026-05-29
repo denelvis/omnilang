@@ -54,15 +54,16 @@ export class AnthropicProvider implements LLMProvider {
 
   public getMockResponse(systemPrompt: string, userPrompt: string): string {
     const promptLower = userPrompt.toLowerCase();
+    const systemPromptLower = systemPrompt.toLowerCase();
 
     // Detect target from the system prompt
-    if (systemPrompt.toLowerCase().includes("rust")) {
+    if (systemPromptLower.includes("senior rust and test engineer")) {
       return this.getMockRustResponse(promptLower, userPrompt);
     }
-    if (systemPrompt.toLowerCase().includes("python")) {
+    if (systemPromptLower.includes("senior python and test engineer")) {
       return this.getMockPythonResponse(promptLower, userPrompt);
     }
-    if (systemPrompt.toLowerCase().includes("go")) {
+    if (systemPromptLower.includes("senior go and test engineer")) {
       return this.getMockGoResponse(promptLower, userPrompt);
     }
 

@@ -77,8 +77,6 @@ pub enum TokenKind {
     KwDependencies,
     KwPolicies,
 
-
-
     // Component internals
     KwProps,
     KwState,
@@ -321,7 +319,6 @@ impl TokenKind {
             "cannot" => Some(TokenKind::KwCannot),
             "must" => Some(TokenKind::KwMust),
 
-
             // Other section keywords
             // "style_guide" => Some(TokenKind::KwStyleGuide),
             // "visual_spec" => Some(TokenKind::KwVisualSpec),
@@ -371,7 +368,6 @@ impl TokenKind {
             // "benchmark" => Some(TokenKind::KwBenchmark),
             // "chaos" => Some(TokenKind::KwChaos),
             // "security" => Some(TokenKind::KwSecurity),
-
             _ => None,
         }
     }
@@ -470,13 +466,12 @@ impl TokenKind {
                 | TokenKind::KwOk
                 | TokenKind::KwErr
                 | TokenKind::KwOld
-                | TokenKind::KwSelfKw
-                // | TokenKind::KwFactory
-                // | TokenKind::KwDefine
-                // | TokenKind::KwVisual
-                // | TokenKind::KwBenchmark
-                // | TokenKind::KwChaos
-                // | TokenKind::KwSecurity
+                | TokenKind::KwSelfKw // | TokenKind::KwFactory
+                                      // | TokenKind::KwDefine
+                                      // | TokenKind::KwVisual
+                                      // | TokenKind::KwBenchmark
+                                      // | TokenKind::KwChaos
+                                      // | TokenKind::KwSecurity
         )
     }
 }

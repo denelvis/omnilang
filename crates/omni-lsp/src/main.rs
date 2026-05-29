@@ -308,9 +308,9 @@ impl LanguageServer for Backend {
 
         // Check if it's a keyword
         let info = match word.as_str() {
-            "service" => {
-                Some("**service** — Declares a backend service with operations, constraints, and tests.")
-            }
+            "service" => Some(
+                "**service** — Declares a backend service with operations, constraints, and tests.",
+            ),
             "type" => Some("**type** — Declares a data type (struct, enum, refined, or alias)."),
             "mixin" => {
                 Some("**mixin** — Declares a reusable set of constraints and postconditions.")

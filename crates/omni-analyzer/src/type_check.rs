@@ -949,8 +949,6 @@ mod tests {
         assert!(diags[0].message.contains("NonExistent"));
     }
 
-
-
     #[test]
     fn builtin_types_valid() {
         let diags = parse_and_check(
