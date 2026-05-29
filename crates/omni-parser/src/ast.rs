@@ -91,6 +91,29 @@ pub enum Declaration {
     Constraint(ConstraintDecl),
     Mixin(MixinDecl),
     TargetDependencies(TargetDependenciesDecl),
+    Entity(EntityDecl),
+    Action(ActionDecl),
+    Rule(RuleDecl),
+}
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct RuleDecl {
+    pub name: String,
+    pub target: String,
+    pub condition: Expression,
+    pub doc_comment: Option<String>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct ActionDecl {
+    pub name: String,
+    pub inputs: Vec<Field>,
+    pub outputs: Vec<Field>,
+    pub preconditions: Vec<Expression>,
+    pub postconditions: Vec<Expression>,
+    pub doc_comment: Option<String>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]

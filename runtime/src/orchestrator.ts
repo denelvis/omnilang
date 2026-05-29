@@ -140,7 +140,7 @@ export class Orchestrator {
       .filter((d): d is { Workflow: any } => "Workflow" in d)
       .map((d) => d.Workflow);
 
-    if (workflowDecls.length > 0) {
+    if (workflowDecls.length > 0 && this.target === "typescript") {
       console.log(pc.yellow(`   Executing workflow generation flow...`));
       const generator = new WorkflowGenerator();
 

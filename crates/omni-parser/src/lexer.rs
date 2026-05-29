@@ -14,6 +14,9 @@ pub struct Lexer<'src> {
     bytes: &'src [u8],
     pos: usize,
     errors: Vec<ParseError>,
+    indent_stack: Vec<usize>,
+    paren_depth: usize,
+    at_line_start: bool,
 }
 
 impl<'src> Lexer<'src> {
@@ -23,6 +26,9 @@ impl<'src> Lexer<'src> {
             bytes: source.as_bytes(),
             pos: 0,
             errors: Vec::new(),
+            indent_stack: vec![0],
+            paren_depth: 0,
+            at_line_start: true,
         }
     }
 
@@ -31,9 +37,82 @@ impl<'src> Lexer<'src> {
         let mut tokens = Vec::new();
 
         loop {
-            self.skip_whitespace();
+            // 1. If we are at the start of a line, handle indentation.
+            if self.at_line_start {
+                let start_pos = self.pos;
+                let mut spaces = 0;
+                while !self.is_at_end() && (self.peek() == ' ' || self.peek() == '\t') {
+                    if self.peek() == '\t' {
+                        spaces += 4;
+                    } else {
+                        spaces += 1;
+                    }
+                    self.advance();
+                }
+
+                // If this is an empty line or line-comment-only line, do not emit Indent/Dedent/Newline.
+                // Note: block comments (/* */) are NOT treated as blank lines because
+                // they may end on the same line with real code following.
+                // Doc comments (///) ARE treated as real lines because they carry semantic
+                // meaning and must trigger proper Indent/Dedent tracking.
+                let next_ch = self.peek();
+                let is_line_comment_only = next_ch == '/'
+                    && self.peek_next() == '/'
+                    && self.peek_at_offset(2) != Some('/');
+                if self.is_at_end()
+                    || next_ch == '\n'
+                    || next_ch == '\r'
+                    || is_line_comment_only
+                {
+                    self.skip_whitespace_non_newline();
+                } else {
+                    // Only emit Indent/Dedent tokens when NOT inside
+                    // brackets/braces/parens. Inside delimited blocks the
+                    // old brace-based syntax handles nesting, so layout
+                    // tokens would corrupt the parse.
+                    if self.paren_depth == 0 {
+                        let current_indent = *self.indent_stack.last().unwrap();
+                        if spaces > current_indent {
+                            self.indent_stack.push(spaces);
+                            tokens.push(Token {
+                                kind: TokenKind::Indent,
+                                span: Span::new(start_pos, self.pos),
+                                text: "indent".to_string(),
+                            });
+                        } else if spaces < current_indent {
+                            while spaces < *self.indent_stack.last().unwrap() {
+                                self.indent_stack.pop();
+                                tokens.push(Token {
+                                    kind: TokenKind::Dedent,
+                                    span: Span::new(start_pos, self.pos),
+                                    text: "dedent".to_string(),
+                                });
+                            }
+                            if spaces != *self.indent_stack.last().unwrap() {
+                                self.errors.push(ParseError::Expected {
+                                    expected: format!("indentation matching a previous level ({})", spaces),
+                                    found: format!("mismatched level ({})", spaces),
+                                    span: Span::new(start_pos, self.pos),
+                                });
+                            }
+                        }
+                    }
+                    self.at_line_start = false;
+                }
+            }
+
+            self.skip_whitespace_non_newline();
 
             if self.is_at_end() {
+                // Close any open indentation levels
+                while self.indent_stack.len() > 1 {
+                    self.indent_stack.pop();
+                    tokens.push(Token {
+                        kind: TokenKind::Dedent,
+                        span: Span::new(self.pos, self.pos),
+                        text: "dedent".to_string(),
+                    });
+                }
                 tokens.push(Token {
                     kind: TokenKind::Eof,
                     span: Span::new(self.pos, self.pos),
@@ -42,12 +121,63 @@ impl<'src> Lexer<'src> {
                 break;
             }
 
+            let ch = self.peek();
+            if ch == '\n' {
+                let start_pos = self.pos;
+                self.advance();
+                if self.paren_depth == 0 {
+                    tokens.push(Token {
+                        kind: TokenKind::Newline,
+                        span: Span::new(start_pos, self.pos),
+                        text: "\n".to_string(),
+                    });
+                }
+                self.at_line_start = true;
+                continue;
+            } else if ch == '\r' && self.peek_next() == '\n' {
+                let start_pos = self.pos;
+                self.advance(); // \r
+                self.advance(); // \n
+                if self.paren_depth == 0 {
+                    tokens.push(Token {
+                        kind: TokenKind::Newline,
+                        span: Span::new(start_pos, self.pos),
+                        text: "\r\n".to_string(),
+                    });
+                }
+                self.at_line_start = true;
+                continue;
+            }
+
             let token = self.next_token();
-            // Skip whitespace-only comments? No, we keep all tokens.
+
+            match token.kind {
+                TokenKind::ParenOpen | TokenKind::BracketOpen | TokenKind::BraceOpen => {
+                    self.paren_depth += 1;
+                }
+                TokenKind::ParenClose | TokenKind::BracketClose | TokenKind::BraceClose => {
+                    if self.paren_depth > 0 {
+                        self.paren_depth -= 1;
+                    }
+                }
+                _ => {}
+            }
+
             tokens.push(token);
         }
 
         (tokens, self.errors)
+    }
+
+    fn skip_whitespace_non_newline(&mut self) {
+        while !self.is_at_end() {
+            let ch = self.peek();
+            if ch == ' ' || ch == '\t' || ch == '\r' {
+                self.advance();
+            } else {
+                break;
+            }
+        }
     }
 
     fn next_token(&mut self) -> Token {
@@ -363,11 +493,6 @@ impl<'src> Lexer<'src> {
         }
     }
 
-    fn skip_whitespace(&mut self) {
-        while !self.is_at_end() && self.peek().is_ascii_whitespace() {
-            self.advance();
-        }
-    }
 
     fn is_at_end(&self) -> bool {
         self.pos >= self.source.len()
@@ -386,6 +511,15 @@ impl<'src> Lexer<'src> {
             '\0'
         } else {
             self.bytes[self.pos + 1] as char
+        }
+    }
+
+    fn peek_at_offset(&self, offset: usize) -> Option<char> {
+        let idx = self.pos + offset;
+        if idx >= self.source.len() {
+            None
+        } else {
+            Some(self.bytes[idx] as char)
         }
     }
 
@@ -446,7 +580,7 @@ mod tests {
     #[test]
     fn whitespace_only() {
         let kinds = lex_kinds("   \n\t  \n  ");
-        assert_eq!(kinds, vec![TokenKind::Eof]);
+        assert_eq!(kinds, vec![TokenKind::Newline, TokenKind::Newline, TokenKind::Eof]);
     }
 
     // ── Keywords ──────────────────────────────────────
@@ -705,7 +839,8 @@ mod tests {
         let tokens = lex("// this is a comment\nmodule");
         assert_eq!(tokens[0].kind, TokenKind::LineComment);
         assert_eq!(tokens[0].text, "// this is a comment");
-        assert_eq!(tokens[1].kind, TokenKind::KwModule);
+        assert_eq!(tokens[1].kind, TokenKind::Newline);
+        assert_eq!(tokens[2].kind, TokenKind::KwModule);
     }
 
     #[test]
@@ -713,7 +848,8 @@ mod tests {
         let tokens = lex("/// Documentation\nservice");
         assert_eq!(tokens[0].kind, TokenKind::DocComment);
         assert_eq!(tokens[0].text, "/// Documentation");
-        assert_eq!(tokens[1].kind, TokenKind::KwService);
+        assert_eq!(tokens[1].kind, TokenKind::Newline);
+        assert_eq!(tokens[2].kind, TokenKind::KwService);
     }
 
     #[test]
@@ -922,5 +1058,17 @@ mod tests {
     fn span_for_string() {
         let tokens = lex(r#""hello""#);
         assert_eq!(tokens[0].span, Span::new(0, 7));
+    }
+
+    #[test]
+    fn test_lexer_indentation() {
+        let input = "entity account\n  id text\n  balance money\n\n  status text\n\naction charge\n  inputs\n    amount money";
+        let (tokens, errors) = Lexer::new(input).tokenize();
+        assert!(errors.is_empty(), "unexpected errors: {errors:?}");
+        
+        let kinds: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
+        assert!(kinds.contains(&TokenKind::Indent));
+        assert!(kinds.contains(&TokenKind::Dedent));
+        assert!(kinds.contains(&TokenKind::Newline));
     }
 }

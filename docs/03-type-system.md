@@ -17,33 +17,33 @@ OmniLang features a rich type system that goes far beyond traditional data types
 
 ```omnilang
 // Scalar types
-Bool
-Int                    // arbitrary precision
-Int32, Int64           // fixed width
-Float32, Float64
-String
-Char
+bool
+int                    // arbitrary precision
+int32, int64           // fixed width
+float32, float64
+string
+char
 
 // Temporal types
-DateTime               // ISO 8601
-Duration               // e.g., 5s, 200ms, 24h
-Timestamp              // Unix epoch milliseconds
-Date
-Time
+datetime               // ISO 8601
+duration               // e.g., 5s, 200ms, 24h
+timestamp              // Unix epoch milliseconds
+date
+time
 
 // Identity types
-UUID
-ULID
-CUID
+uuid
+ulid
+cuid
 
 // Monetary
-Money(amount: Float64, currency: CurrencyCode)
+money(amount: float64, currency: CurrencyCode)
 
 // Network
-URL
-Email
-IPAddress(v4 | v6)
-Port
+url
+email
+ipAddress(v4 | v6)
+port
 ```
 
 ---
@@ -51,16 +51,16 @@ Port
 ## Collection Types
 
 ```omnilang
-List<T>                // ordered collection
-Set<T>                 // unique unordered collection
-Map<K, V>              // key-value mapping
-Queue<T>               // FIFO queue
-Stack<T>               // LIFO stack
-Tree<T>                // hierarchical structure
+list<T>                // ordered collection
+set<T>                 // unique unordered collection
+map<K, V>              // key-value mapping
+queue<T>               // FIFO queue
+stack<T>               // LIFO stack
+tree<T>                // hierarchical structure
 
 // Bounded collections
-List<T>(min: 1, max: 100)
-String(min_length: 1, max_length: 255)
+list<T>(min: 1, max: 100)
+string(min_length: 1, max_length: 255)
 ```
 
 ---
@@ -69,28 +69,28 @@ String(min_length: 1, max_length: 255)
 
 ```omnilang
 // Sum types (tagged unions)
-type PaymentStatus = enum {
+type paymentStatus = enum {
   Pending
   Processing
-  Completed(transaction_id: TransactionId)
-  Failed(error: PaymentError)
-  Refunded(refund_id: RefundId, amount: Money)
+  Completed(transaction_id: transactionId)
+  Failed(error: paymentError)
+  Refunded(refund_id: refundId, amount: money)
 }
 
 // Product types (records/structs)
-type Address = struct {
-  street: String(max_length: 200)
-  city: String
-  state: Option<String>
-  postal_code: PostalCode
-  country: CountryCode(ISO_3166_1)
+type address = struct {
+  street: string(max_length: 200)
+  city: string
+  state: option<string>
+  postal_code: postalCode
+  country: countryCode(ISO_3166_1)
 }
 
 // Option type (nullable)
-Option<T> = Some(T) | None
+option<T> = Some(T) | None
 
 // Result type (fallible operations)
-Result<T, E> = Ok(T) | Err(E)
+result<T, E> = Ok(T) | Err(E)
 ```
 
 ---
@@ -101,41 +101,41 @@ Semantic types add domain-specific validation rules to base types. They are not 
 
 ```omnilang
 // Define refined types with validation rules
-type Email = String {
+type email = string {
   format: RFC_5322
   max_length: 254
   normalize: lowercase
 }
 
-type Password = String {
+type password = string {
   min_length: 12
   must_contain: [uppercase, lowercase, digit, special]
   not_in: common_passwords_list
   storage: bcrypt(rounds: 12)  // semantic: how to persist
 }
 
-type PostalCode = String {
+type postalCode = string {
   format: regex("^[0-9]{5}(-[0-9]{4})?$")  // US ZIP
 }
 
-type Latitude = Float64 {
+type latitude = float64 {
   range: [-90.0, 90.0]
 }
 
-type Longitude = Float64 {
+type longitude = float64 {
   range: [-180.0, 180.0]
 }
 
-type GeoPoint = struct {
-  lat: Latitude
-  lng: Longitude
+type geoPoint = struct {
+  lat: latitude
+  lng: longitude
 }
 
-type Age = Int {
+type age = int {
   range: [0, 150]
 }
 
-type Percentage = Float64 {
+type percentage = float64 {
   range: [0.0, 100.0]
   precision: 2
 }
@@ -149,16 +149,16 @@ Confidence types wrap any value with a trust level, enabling the system to track
 
 ```omnilang
 // Generic confidence wrapper
-type Confident<T> = struct {
+type confident<T> = struct {
   value: T
-  confidence: ConfidenceLevel
-  evidence: List<EvidenceRef>
-  generated_by: AgentId
-  generated_at: Timestamp
+  confidence: confidenceLevel
+  evidence: list<evidenceRef>
+  generated_by: agentId
+  generated_at: timestamp
 }
 
 // Confidence levels
-type ConfidenceLevel = enum {
+type confidenceLevel = enum {
   Proven         // Formally verified
   High           // Thoroughly tested
   Medium         // Functionally tested
@@ -167,12 +167,12 @@ type ConfidenceLevel = enum {
 }
 
 // Usage in contracts
-contract AnalyzeSentiment {
+contract analyzeSentiment {
   inputs:
-    text: String
+    text: string
 
   outputs:
-    sentiment: Confident<SentimentScore>
+    sentiment: confident<sentimentScore>
     // The output explicitly carries its confidence level
 
   postconditions:
@@ -201,73 +201,73 @@ OmniLang treats non-textual data as first-class types, enabling specs that refer
 
 ```omnilang
 // Visual types
-type Screenshot = Image {
+type screenshot = image {
   format: PNG | JPEG | WebP
   metadata: struct {
-    viewport: Viewport
-    device_pixel_ratio: Float64
-    captured_at: Timestamp
+    viewport: viewport
+    device_pixel_ratio: float64
+    captured_at: timestamp
   }
 }
 
-type VisualGolden = struct {
-  reference: Screenshot
-  tolerance: Percentage        // pixel diff tolerance
-  ignore_regions: List<Rect>   // areas to skip (e.g., timestamps)
+type visualGolden = struct {
+  reference: screenshot
+  tolerance: percentage        // pixel diff tolerance
+  ignore_regions: list<rect>   // areas to skip (e.g., timestamps)
 }
 
-type Viewport = struct {
-  width: Int(range: [320, 3840])
-  height: Int(range: [240, 2160])
+type viewport = struct {
+  width: int(range: [320, 3840])
+  height: int(range: [240, 2160])
 }
 
 // Trace types
-type Trace = struct {
-  spans: List<Span>
+type trace = struct {
+  spans: list<span>
   format: OpenTelemetry | Jaeger | Zipkin
 }
 
-type Span = struct {
-  operation: String
-  duration: Duration
-  status: SpanStatus
-  attributes: Map<String, Any>
-  children: List<Span>
+type span = struct {
+  operation: string
+  duration: duration
+  status: spanStatus
+  attributes: map<string, Any>
+  children: list<span>
 }
 
 // Log types
-type LogStream = struct {
-  entries: List<LogEntry>
+type logStream = struct {
+  entries: list<logEntry>
   format: JSON | Plaintext | Structured
 }
 
-type LogEntry = struct {
-  timestamp: Timestamp
-  level: LogLevel
-  message: String
-  context: Map<String, Any>
+type logEntry = struct {
+  timestamp: timestamp
+  level: logLevel
+  message: string
+  context: map<string, Any>
 }
 
 // Schema types
-type DatabaseSchema = struct {
-  tables: List<TableDef>
+type databaseSchema = struct {
+  tables: list<tableDef>
   format: SQL_DDL | Prisma | TypeORM
 }
 
-type APISchema = struct {
-  endpoints: List<EndpointDef>
+type apiSchema = struct {
+  endpoints: list<endpointDef>
   format: OpenAPI_3 | GraphQL_SDL | Protobuf
 }
 
 // Document types
-type Diagram = Image {
+type diagram = image {
   source: Mermaid | PlantUML | D2
-  rendered: Screenshot
+  rendered: screenshot
 }
 
-type Document = struct {
+type document = struct {
   content: Markdown | RST | AsciiDoc
-  embedded_media: List<Image | Diagram>
+  embedded_media: list<image | diagram>
 }
 ```
 
@@ -278,53 +278,53 @@ type Document = struct {
 Budget types make resource constraints explicit and trackable.
 
 ```omnilang
-type TokenBudget = struct {
-  max_input_tokens: Int
-  max_output_tokens: Int
-  max_total_tokens: Int
-  model_preference: ModelPreference
+type tokenBudget = struct {
+  max_input_tokens: int
+  max_output_tokens: int
+  max_total_tokens: int
+  model_preference: modelPreference
 }
 
-type CostBudget = struct {
-  max_total: Money
-  per_component: Option<Money>
-  per_retry: Option<Money>
-  alert_threshold: Percentage  // alert when N% consumed
+type costBudget = struct {
+  max_total: money
+  per_component: option<money>
+  per_retry: option<money>
+  alert_threshold: percentage  // alert when N% consumed
 }
 
-type ModelPreference = enum {
+type modelPreference = enum {
   CheapFast         // e.g., GPT-4o-mini, Claude Haiku
   Balanced          // e.g., GPT-4o, Claude Sonnet
   SmartExpensive    // e.g., o3, Claude Opus
-  Custom(model_id: String)
+  Custom(model_id: string)
 }
 
-type TimeBudget = struct {
-  max_generation_time: Duration
-  max_verification_time: Duration
-  timeout_action: TimeoutAction
+type timeBudget = struct {
+  max_generation_time: duration
+  max_verification_time: duration
+  timeout_action: timeoutAction
 }
 
-type TimeoutAction = enum {
-  ReturnBestEffort(confidence: Speculative)
-  Fail(message: String)
+type timeoutAction = enum {
+  ReturnBestEffort(confidence: speculative)
+  Fail(message: string)
   EscalateToHuman
 }
 
 // Usage
 budget {
-  cost: CostBudget {
+  cost: costBudget {
     max_total: $0.50
     per_component: $0.10
     alert_threshold: 80%
   }
 
-  tokens: TokenBudget {
+  tokens: tokenBudget {
     max_total_tokens: 100_000
     model_preference: Balanced
   }
 
-  time: TimeBudget {
+  time: timeBudget {
     max_generation_time: 5min
     timeout_action: EscalateToHuman
   }
@@ -339,27 +339,27 @@ Types compose through standard algebraic operations:
 
 ```omnilang
 // Union types
-type PaymentMethod = CreditCard | BankTransfer | CryptoWallet | PayPal
+type paymentMethod = creditCard | bankTransfer | cryptoWallet | payPal
 
 // Intersection types (must satisfy all)
-type SecureEndpoint = Endpoint & Authenticated & RateLimited & Logged
+type secureEndpoint = endpoint & authenticated & rateLimited & logged
 
 // Generic types
-type Paginated<T> = struct {
-  items: List<T>
-  total: Int
-  page: Int
-  per_page: Int(range: [1, 100])
-  has_next: Bool
+type paginated<T> = struct {
+  items: list<T>
+  total: int
+  page: int
+  per_page: int(range: [1, 100])
+  has_next: bool
 }
 
 // Mapped types (transform all fields)
-type Nullable<T: struct> = {
-  [field in T]: Option<T[field]>
+type nullable<T: struct> = {
+  [field in T]: option<T[field]>
 }
 
 // Partial types (all fields optional)
-type UpdateRequest<T: struct> = Partial<T> & { id: T.id }
+type updateRequest<T: struct> = partial<T> & { id: T.id }
 ```
 
 ---
@@ -369,11 +369,11 @@ type UpdateRequest<T: struct> = Partial<T> & { id: T.id }
 OmniLang uses **structural subtyping** — types are compatible if their shapes match, regardless of name.
 
 ```omnilang
-type Dog = struct { name: String, age: Int }
-type Pet = struct { name: String }
+type dog = struct { name: string, age: int }
+type pet = struct { name: string }
 
-// Dog is a subtype of Pet (has all required fields)
-// So a function expecting Pet can accept Dog
+// dog is a subtype of pet (has all required fields)
+// So a function expecting pet can accept dog
 ```
 
 ### Contract Type Checking
@@ -381,18 +381,18 @@ type Pet = struct { name: String }
 The analyzer verifies type compatibility across service boundaries:
 
 ```omnilang
-service OrderService {
+service orderService {
   outputs:
-    order: Order  // includes field: items: List<OrderItem>
+    order: order  // includes field: items: list<orderItem>
 }
 
-service ShippingService {
+service shippingService {
   inputs:
-    items: List<ShippableItem>  // ShippableItem ⊂ OrderItem must hold
+    items: list<shippableItem>  // shippableItem ⊂ orderItem must hold
 }
 
-// The analyzer checks: OrderItem is structurally compatible with ShippableItem
-// If not → compile-time error: "OrderItem missing field 'weight' required by ShippableItem"
+// The analyzer checks: orderItem is structurally compatible with shippableItem
+// If not → compile-time error: "orderItem missing field 'weight' required by shippableItem"
 ```
 
 ---

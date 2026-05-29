@@ -150,6 +150,10 @@ pub struct DependencyEntry {
     pub version: Option<String>,
     pub path: Option<String>,
     pub registry: Option<String>,
+    pub git: Option<String>,
+    pub tag: Option<String>,
+    pub branch: Option<String>,
+    pub rev: Option<String>,
 }
 
 /// Parse an `omni.toml` manifest file.
@@ -205,12 +209,20 @@ pub fn parse_manifest(content: &str) -> Result<ModuleManifest, String> {
                     version: Some(ver.clone()),
                     path: None,
                     registry: None,
+                    git: None,
+                    tag: None,
+                    branch: None,
+                    rev: None,
                 },
                 toml::Value::Table(t) => DependencyEntry {
                     name: dep_name.clone(),
                     version: t.get("version").and_then(|v| v.as_str()).map(String::from),
                     path: t.get("path").and_then(|v| v.as_str()).map(String::from),
                     registry: t.get("registry").and_then(|v| v.as_str()).map(String::from),
+                    git: t.get("git").and_then(|v| v.as_str()).map(String::from),
+                    tag: t.get("tag").and_then(|v| v.as_str()).map(String::from),
+                    branch: t.get("branch").and_then(|v| v.as_str()).map(String::from),
+                    rev: t.get("rev").and_then(|v| v.as_str()).map(String::from),
                 },
                 _ => {
                     return Err(format!(
@@ -263,6 +275,17 @@ pub fn generate_lockfile(manifest: &ModuleManifest) -> String {
         }
         if let Some(path) = &dep.path {
             lines.push(format!("source = \"path:{}\"", path));
+        } else if let Some(git) = &dep.git {
+            lines.push(format!("source = \"git:{}\"", git));
+            if let Some(tag) = &dep.tag {
+                lines.push(format!("tag = \"{}\"", tag));
+            }
+            if let Some(branch) = &dep.branch {
+                lines.push(format!("branch = \"{}\"", branch));
+            }
+            if let Some(rev) = &dep.rev {
+                lines.push(format!("rev = \"{}\"", rev));
+            }
         } else if let Some(registry) = &dep.registry {
             lines.push(format!("source = \"registry:{}\"", registry));
         } else {
@@ -461,6 +484,10 @@ community-auth = { registry = "omnilang", version = "^2.0" }
                 version: Some("^1.0".to_string()),
                 path: None,
                 registry: None,
+                git: None,
+                tag: None,
+                branch: None,
+                rev: None,
             }],
         };
         let lock = generate_lockfile(&manifest);

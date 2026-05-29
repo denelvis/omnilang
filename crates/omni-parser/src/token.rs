@@ -14,6 +14,14 @@ pub struct Token {
 /// All possible token types in OmniLang.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TokenKind {
+    // ── Layout ────────────────────────────────────────
+    /// Indentation increase
+    Indent,
+    /// Indentation decrease
+    Dedent,
+    /// End of logical line / statement
+    Newline,
+
     // ── Literals ──────────────────────────────────────
     /// Integer literal: `42`, `1_000`
     IntLiteral,
@@ -99,6 +107,8 @@ pub enum TokenKind {
 
     // Schema internals
     KwEntity,
+    KwAction,
+    KwRule,
     KwRelations,
     KwIndexes,
 
@@ -314,6 +324,8 @@ impl TokenKind {
 
             // Schema & Agent boundary internals
             "entity" => Some(TokenKind::KwEntity),
+            "action" => Some(TokenKind::KwAction),
+            "rule" => Some(TokenKind::KwRule),
             "relations" => Some(TokenKind::KwRelations),
             "indexes" => Some(TokenKind::KwIndexes),
             "cannot" => Some(TokenKind::KwCannot),
@@ -428,6 +440,8 @@ impl TokenKind {
                 // | TokenKind::KwRules
                 // | TokenKind::KwSchedule
                 | TokenKind::KwEntity
+                | TokenKind::KwAction
+                | TokenKind::KwRule
                 | TokenKind::KwRelations
                 | TokenKind::KwIndexes
                 | TokenKind::KwCannot
@@ -479,6 +493,9 @@ impl TokenKind {
 impl std::fmt::Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            TokenKind::Indent => write!(f, "indent"),
+            TokenKind::Dedent => write!(f, "dedent"),
+            TokenKind::Newline => write!(f, "newline"),
             TokenKind::IntLiteral => write!(f, "integer"),
             TokenKind::FloatLiteral => write!(f, "float"),
             TokenKind::StringLiteral => write!(f, "string"),

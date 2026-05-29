@@ -87,6 +87,16 @@ pub fn check_types(file: &SourceFile, symbols: &SymbolTable, diagnostics: &mut V
             | Declaration::Constraint(_)
             | Declaration::Mixin(_)
             | Declaration::TargetDependencies(_) => {}
+            Declaration::Entity(e) => {
+                for field in &e.fields {
+                    check_type_ref(&field.ty, symbols, &[], diagnostics);
+                }
+            }
+            Declaration::Action(a) => {
+                check_fields(&a.inputs, symbols, &[], diagnostics);
+                check_fields(&a.outputs, symbols, &[], diagnostics);
+            }
+            Declaration::Rule(_) => {}
         }
     }
 

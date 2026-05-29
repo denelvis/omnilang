@@ -197,6 +197,9 @@ pub fn build_spec_ir(
                 total_tests += m.tests.len();
             }
             Declaration::TargetDependencies(_) => {}
+            Declaration::Entity(_) => {}
+            Declaration::Action(_) => {}
+            Declaration::Rule(_) => {}
         }
     }
 

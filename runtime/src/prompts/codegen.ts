@@ -356,35 +356,36 @@ function getTypeScriptSystemPrompt(promptAdditions: string = ""): string {
 
 function formatTypeRef(ref: TypeRef, typeMappings?: TypeMapping[]): string {
   if (typeMappings) {
-    const mapping = typeMappings.find(m => m.omni_type === ref.name);
+    const mapping = typeMappings.find(m => m.omni_type.toLowerCase() === ref.name.toLowerCase());
     if (mapping) {
       return mapping.target_type;
     }
   }
 
-  if (ref.name === "String" || ref.name === "Email" || ref.name === "URL" || ref.name === "UUID") {
+  const nameLower = ref.name.toLowerCase();
+  if (nameLower === "string" || nameLower === "email" || nameLower === "url" || nameLower === "uuid") {
     return "string";
   }
-  if (ref.name === "Int" || ref.name === "Float" || ref.name === "Decimal" || ref.name === "Money" || ref.name === "Duration") {
+  if (nameLower === "int" || nameLower === "float" || nameLower === "decimal" || nameLower === "money" || nameLower === "duration") {
     return "number";
   }
-  if (ref.name === "Bool") {
+  if (nameLower === "bool" || nameLower === "boolean") {
     return "boolean";
   }
-  if (ref.name === "DateTime" || ref.name === "Date") {
+  if (nameLower === "datetime" || nameLower === "date") {
     return "Date";
   }
-  if (ref.name === "Bytes") {
+  if (nameLower === "bytes") {
     return "Buffer";
   }
-  if (ref.name === "Void") {
+  if (nameLower === "void") {
     return "void";
   }
-  if (ref.name === "List") {
+  if (nameLower === "list") {
     const arg = ref.type_args[0] ? formatTypeRef(ref.type_args[0], typeMappings) : "any";
     return `${arg}[]`;
   }
-  if (ref.name === "Option") {
+  if (nameLower === "option") {
     const arg = ref.type_args[0] ? formatTypeRef(ref.type_args[0], typeMappings) : "any";
     return `${arg} | null`;
   }
