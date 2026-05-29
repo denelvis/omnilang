@@ -1,18 +1,23 @@
 module acme.banking.demo
 
-type AccountId = String
+type accountId = string
 
-type Account = struct {
-  id: AccountId
-  balance: Money
-  status: String
-}
+type account = struct
+  id accountId
+  balance money
+  status string
 
-service BankTransferService {
-  goal: "Safely process bank transfers with invariants and self-correction"
+service bankTransferService
+  goal "Safely process bank transfers with invariants and self-correction"
 
   /// Transfers money from one account to another
-  operation Transfer(fromId: AccountId, toId: AccountId, amount: Money) -> Bool {
+  operation Transfer
+    inputs:
+      fromId accountId
+      toId accountId
+      amount money
+    outputs:
+      success bool
     preconditions:
       - "Transfer amount must be strictly greater than zero"
       - "Sender account must have sufficient funds"
@@ -20,9 +25,7 @@ service BankTransferService {
     postconditions:
       - "Sender balance must decrease by the transfer amount"
       - "Receiver balance must increase by the transfer amount"
-  }
 
   invariants:
-    - balance_safety: "Account.balance >= 0"
+    - balance_safety: "account.balance >= 0"
     - audit_trail: "All successful transfers must create a transaction history entry"
-}

@@ -22,37 +22,43 @@ By using a hybrid approach, developers can write strict signatures and type cont
 ```omnilang
 module acme.billing
 
-type AccountId = String
+type accountId = string
 
-type Account = struct {
-  id: AccountId
-  balance: Money
-  status: String
-}
+type account = struct
+  id accountId
+  balance money
+  status string
 
-service PaymentService {
-  goal: "Handle billing account deposits and charges safely"
+service paymentService
+  goal "Handle billing account deposits and charges safely"
 
   /// Deposits money into the account
-  rpc Deposit(accountId: AccountId, amount: Money) -> Money {
+  operation Deposit
+    inputs:
+      accountId accountId
+      amount money
+    outputs:
+      result money
     preconditions:
       - "Deposit amount must be strictly greater than zero"
     postconditions:
       - "New balance must increase exactly by the deposit amount"
-  }
 
   /// Charges the account for a purchase
-  rpc Charge(accountId: AccountId, amount: Money) -> Bool {
+  operation Charge
+    inputs:
+      accountId accountId
+      amount money
+    outputs:
+      success bool
     preconditions:
       - "Account balance must be greater than or equal to the charge amount"
       - "Account must be in Active status"
     postconditions:
       - "If the charge is successful, the balance is decreased by the charge amount"
-  }
 
   invariants:
-    - balance_safety: "Account.balance >= 0"
-}
+    - balance_safety: "account.balance >= 0"
 ```
 
 Then:

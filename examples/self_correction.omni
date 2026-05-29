@@ -1,17 +1,13 @@
 module acme.testing.self_correction
 
-service SelfCorrectingService {
-  goal: "Test self correction capabilities of the generator."
+service selfCorrectingService
+  goal "Test self correction capabilities of the generator."
 
-  operation Process {
+  operation Process
     inputs:
-      input_val: String
-
+      input_val string
     outputs:
-      result: String
-
+      result string
     tests:
       - scenario: "Process successfully"
         expect: result == "ok"
-  }
-}

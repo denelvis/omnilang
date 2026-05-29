@@ -104,6 +104,131 @@ pub fn analyze(file: &SourceFile) -> (Option<SpecIR>, Vec<Diagnostic>) {
     (Some(ir), diagnostics)
 }
 
+/// Run project-wide analysis on a set of parsed source files.
+/// Resolves imports and merges the AST into a unified project SpecIR.
+pub fn analyze_project(files: &[SourceFile]) -> (Option<SpecIR>, Vec<Diagnostic>) {
+    let mut diagnostics = Vec::new();
+
+    if files.is_empty() {
+        return (None, diagnostics);
+    }
+
+    // Step 1: Build a map of module paths to their exported symbols (Visibility::Public)
+    let mut module_exports = std::collections::HashMap::new();
+    for file in files {
+        let mod_path = file.module.path.clone();
+        let mut exports_table = SymbolTable::new();
+
+        let mut local_diags = Vec::new();
+        let local_table = symbols::build_symbol_table(file, &mut local_diags);
+        for (name, symbol) in local_table.iter() {
+            // Built-in types are always public but we don't need to re-export them from user modules
+            if symbols::BUILTIN_TYPES.contains(&name.as_str()) || symbols::BUILTIN_TYPES.contains(&name.to_lowercase().as_str()) {
+                continue;
+            }
+            // Check visibility of the local declaration
+            let is_public = file.declarations.iter().any(|decl| {
+                let (decl_name, vis) = match decl {
+                    omni_parser::ast::Declaration::Type(t) => (t.name.clone(), t.visibility),
+                    omni_parser::ast::Declaration::Service(s) => (s.name.clone(), s.visibility),
+                    omni_parser::ast::Declaration::Mixin(m) => (m.name.clone(), m.visibility),
+                    _ => return true, // All other declarations are public by default
+                };
+                decl_name == *name && vis == omni_parser::ast::Visibility::Public
+            });
+
+            if is_public {
+                exports_table.insert(name.clone(), symbol.clone());
+            }
+        }
+        module_exports.insert(mod_path, exports_table);
+    }
+
+    // Step 2: Merge all files into a single virtual SourceFile
+    let mut merged_file = files[0].clone();
+    for file in files.iter().skip(1) {
+        merged_file.imports.extend(file.imports.clone());
+        merged_file.exports.extend(file.exports.clone());
+        merged_file.declarations.extend(file.declarations.clone());
+    }
+
+    // Step 3: Build a merged SymbolTable from the merged SourceFile
+    let mut merged_symbols = symbols::build_symbol_table(&merged_file, &mut diagnostics);
+
+    // Step 4: Resolve imports and register aliases/mappings in the merged symbol table
+    for file in files {
+        for import in &file.imports {
+            let target_mod = &import.path;
+            if let Some(exports) = module_exports.get(target_mod) {
+                match &import.items {
+                    omni_parser::ast::ImportItems::Wildcard => {
+                        // Wildcard import: register all exports in the merged symbol table under their names
+                        for (name, symbol) in exports.iter() {
+                            merged_symbols.insert(name.clone(), symbol.clone());
+                            merged_symbols.insert(name.to_lowercase(), symbol.clone());
+                        }
+                    }
+                    omni_parser::ast::ImportItems::Named(items) => {
+                        for item in items {
+                            if let Some(symbol) = exports.get(&item.name) {
+                                if let Some(alias) = &item.alias {
+                                    let mut resolved_symbol = symbol.clone();
+                                    resolved_symbol.name = alias.clone();
+                                    merged_symbols.insert(alias.clone(), resolved_symbol.clone());
+                                    merged_symbols.insert(alias.to_lowercase(), resolved_symbol);
+                                }
+                            } else {
+                                diagnostics.push(Diagnostic {
+                                    kind: DiagnosticKind::Error,
+                                    message: format!(
+                                        "symbol '{}' not found in module '{}'",
+                                        item.name,
+                                        target_mod.join(".")
+                                    ),
+                                    span: item.span,
+                                });
+                            }
+                        }
+                    }
+                }
+            } else {
+                // If the module is not found in local files, it might be std or registry/external.
+                // We only report an error if it's not a standard library path (like std.*).
+                if !target_mod.is_empty() && target_mod[0] != "std" {
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: format!("module '{}' not found", target_mod.join(".")),
+                        span: import.span,
+                    });
+                }
+            }
+        }
+    }
+
+    // Step 5: Run all analysis check phases on the merged SourceFile using the merged SymbolTable
+    type_check::check_types(&merged_file, &merged_symbols, &mut diagnostics);
+    constraints::validate_constraints(&merged_file, &mut diagnostics);
+    module_system::check_visibility(&merged_file, &mut diagnostics);
+    module_system::expand_mixins(&merged_file, &mut diagnostics);
+    policy::enforce_policies(&merged_file, &mut diagnostics);
+    workflow::check_workflows(&merged_file, &mut diagnostics);
+    gap_detector::analyze_gaps(&merged_file, &mut diagnostics);
+    schema::check_schema_evolution(&merged_file, &mut diagnostics);
+    formal::verify_proof_obligations(&merged_file, &mut diagnostics);
+
+    let has_errors = diagnostics.iter().any(|d| d.kind == DiagnosticKind::Error);
+    if has_errors {
+        return (None, diagnostics);
+    }
+
+    // Step 6: Build the merged SpecIR
+    let dep_graph = deps::build_dependency_graph(&merged_file, &mut diagnostics);
+    let ir = ir::build_spec_ir(&merged_file, &merged_symbols, &dep_graph);
+
+    (Some(ir), diagnostics)
+}
+
+
 /// Convenience: parse + analyze in one step
 pub fn parse_and_analyze(source: &str) -> (Option<SpecIR>, Vec<Diagnostic>, Vec<ParseError>) {
     let (tokens, lex_errors) = omni_parser::Lexer::new(source).tokenize();

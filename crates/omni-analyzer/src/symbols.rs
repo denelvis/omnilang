@@ -35,6 +35,9 @@ pub enum SymbolKind {
     Schema,
     Policy,
     Constraint,
+    Entity,
+    Action,
+    Rule,
 }
 
 /// The symbol table maps names to their definitions.
@@ -74,7 +77,7 @@ impl SymbolTable {
 }
 
 /// Built-in types that are always available.
-const BUILTIN_TYPES: &[&str] = &[
+pub const BUILTIN_TYPES: &[&str] = &[
     "String",
     "Int",
     "Float",
@@ -139,15 +142,14 @@ pub fn build_symbol_table(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) 
             ],
             _ => vec![],
         };
-        table.insert(
-            name.to_string(),
-            Symbol {
-                name: name.to_string(),
-                kind: SymbolKind::Type,
-                span: Span::new(0, 0),
-                type_params,
-            },
-        );
+        let symbol = Symbol {
+            name: name.to_string(),
+            kind: SymbolKind::Type,
+            span: Span::new(0, 0),
+            type_params,
+        };
+        table.insert(name.to_string(), symbol.clone());
+        table.insert(name.to_lowercase(), symbol);
     }
 
     // Register all declarations
@@ -371,6 +373,66 @@ pub fn build_symbol_table(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) 
                 );
             }
             Declaration::TargetDependencies(_) => {}
+            Declaration::Entity(e) => {
+                if let Some(prev) = table.get(&e.name)
+                    && (prev.span.start != 0 || prev.span.end != 0)
+                {
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: format!("duplicate entity definition: '{}'", e.name),
+                        span: e.span,
+                    });
+                }
+                table.insert(
+                    e.name.clone(),
+                    Symbol {
+                        name: e.name.clone(),
+                        kind: SymbolKind::Entity,
+                        span: e.span,
+                        type_params: Vec::new(),
+                    },
+                );
+            }
+            Declaration::Action(a) => {
+                if let Some(prev) = table.get(&a.name)
+                    && (prev.span.start != 0 || prev.span.end != 0)
+                {
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: format!("duplicate action definition: '{}'", a.name),
+                        span: a.span,
+                    });
+                }
+                table.insert(
+                    a.name.clone(),
+                    Symbol {
+                        name: a.name.clone(),
+                        kind: SymbolKind::Action,
+                        span: a.span,
+                        type_params: Vec::new(),
+                    },
+                );
+            }
+            Declaration::Rule(r) => {
+                if let Some(prev) = table.get(&r.name)
+                    && (prev.span.start != 0 || prev.span.end != 0)
+                {
+                    diagnostics.push(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: format!("duplicate rule definition: '{}'", r.name),
+                        span: r.span,
+                    });
+                }
+                table.insert(
+                    r.name.clone(),
+                    Symbol {
+                        name: r.name.clone(),
+                        kind: SymbolKind::Rule,
+                        span: r.span,
+                        type_params: Vec::new(),
+                    },
+                );
+            }
         }
     }
 

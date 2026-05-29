@@ -1,81 +1,67 @@
 module acme.checkout
 
-type OrderId = UUID
+type orderId = uuid
 
-type OrderStatus = enum {
+type orderStatus = enum
   Draft
   Pending
   Confirmed
   Shipped
   Delivered
   Cancelled
-}
 
-type OrderItem = struct {
-  product_id: String
-  quantity: Int
-  unit_price: Decimal
-}
+type orderItem = struct
+  product_id string
+  quantity int
+  unit_price decimal
 
-type Order = struct {
-  id: OrderId
-  customer_id: String
-  items: List<OrderItem>
-  status: OrderStatus
-  total: Decimal
-  created_at: DateTime
-}
+type order = struct
+  id orderId
+  customer_id string
+  items list<orderItem>
+  status orderStatus
+  total decimal
+  created_at datetime
 
-service Checkout {
-  goal: "Process customer orders with payment validation"
+service checkout
+  goal "Process customer orders with payment validation"
 
   constraints:
     - idempotent
     - latency(p95: 200ms)
 
   metrics:
-    - counter payment_attempts_total {
-        description: "Total payment attempts"
-        labels: [payment_method, status]
-      }
+    - counter payment_attempts_total
+        description "Total payment attempts"
+        labels [payment_method, status]
 
-  operation PlaceOrder {
+  operation PlaceOrder
     inputs:
-      customer_id: String
-      items: List<OrderItem>
-      payment_method: String
-
+      customer_id string
+      items list<orderItem>
+      payment_method string
     outputs:
-      order_id: OrderId
-      status: OrderStatus
-
+      order_id orderId
+      status orderStatus
     postconditions:
-      - status == OrderStatus.Confirmed
-
+      - status == orderStatus.Confirmed
     tests:
       - scenario: "Successful order"
         given: valid_customer()
-        expect: status == OrderStatus.Confirmed
-
+        expect: status == orderStatus.Confirmed
       - scenario: "Empty cart"
         expect_error: EmptyCart
-
     errors:
       - EmptyCart
       - InsufficientStock
       - PaymentFailed
-  }
 
-  operation CancelOrder {
+  operation CancelOrder
     inputs:
-      order_id: OrderId
+      order_id orderId
     outputs:
-      status: OrderStatus
-
+      status orderStatus
     preconditions:
-      - status != OrderStatus.Cancelled
-
+      - status != orderStatus.Cancelled
     postconditions:
-      - status == OrderStatus.Cancelled
-  }
-}
+      - status == orderStatus.Cancelled

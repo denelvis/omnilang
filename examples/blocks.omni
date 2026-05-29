@@ -1,42 +1,40 @@
 module acme.phase1
 
-type ProductId = UUID
-type OrderId = UUID
-type OrderSummary = String
+type productId = uuid
+type orderId = uuid
+type orderSummary = string
 
-type Serializable = struct {
-  id: UUID
-}
+type serializable = struct
+  id uuid
 
-type ApiResponse<T: Serializable, E> = struct {
-  data: T
-  error: E?
-}
+type apiResponse<T: serializable, E> = struct
+  data T
+  error E?
 
-type PaymentStatus = enum { Success, Failed, Cancelled }
+type paymentStatus = enum { Success, Failed, Cancelled }
 
-type Value = Int | Float | String?
+type value = int | float | string?
 
-type OrderIdRefined = String {
+type orderIdRefined = string {
   format: regex("^[0-9]+$")
   min_length: 5
 }
 
-type Price = {
+type price = {
   range: [0.0, 9999.9]
 }
 
-component ProductCard {
+component productCard {
   goal: "Render product details with real-time stock"
   props:
-    id: ProductId
-    label: String
+    id: productId
+    label: string
   state:
-    stock: Int
+    stock: int
   events:
-    - select(id: ProductId)
+    - select(id: productId)
   slots:
-    content: String
+    content: string
   constraints:
     - latency(p95: 50ms)
   style_guide: "AcmeDark"
@@ -49,60 +47,60 @@ component ProductCard {
       expect: id != null
 }
 
-pipeline DailyRevenueReport {
+pipeline dailyRevenueReport {
   goal: "Aggregate daily revenue"
   source:
-    type: PostgreSQL
+    kind: PostgreSQL
     table: orders
   stages:
     - filter: status == Completed
   sink:
-    type: S3
+    kind: S3
     path: "s3://reports"
   schedule: "0 6 * * *"
 }
 
-workflow OrderFulfillment {
+workflow orderFulfillment {
   goal: "Manage order lifecycle"
   states:
-    Placed
-    PaymentPending
-    Shipped
+    placed
+    paymentPending
+    shipped
   transitions:
-    Placed -> PaymentPending:
+    placed -> paymentPending:
       trigger: order_placed
       action: initiate_payment
-    PaymentPending -> Shipped:
+    paymentPending -> shipped:
       trigger: payment_success
       action: ship_order
 }
 
-agent CustomerSupportAgent {
+agent customerSupportAgent {
   goal: "Handle support inquiries"
   capabilities:
     - answer_faq
   boundaries:
     - cannot: modify_pricing
   tools:
-    - OrderLookup(input: OrderId, output: OrderSummary)
+    - orderLookup(input: orderId, output: orderSummary)
   model:
     preference: Balanced
 }
 
-schema ECommerceDB {
+schema ecommerceDb {
   goal: "E-commerce data model"
   target: postgresql
-  entity Product {
-    id: ProductId @primary
-    name: String @indexed
+  entity product {
+    id: productId @primary
+    name: string @indexed
   }
   relations:
-    - Customer has_many Orders
+    - customer has_many orders
   indexes:
-    - Order(customer, placed_at)
+    - order(customer, placed_at)
 }
 
-policy SecurityBaseline {
+policy securityBaseline {
   description: "Minimum security requirements"
   scope: global
   rules:
@@ -111,7 +109,7 @@ policy SecurityBaseline {
         - apply: PCI_DSS_v4
 }
 
-constraint PCI_compliant {
+constraint pciCompliant {
   requires:
     - authenticated
     - audit_logging
@@ -119,20 +117,17 @@ constraint PCI_compliant {
     - tool: SonarQube evidence: "sonar-report.json"
 }
 
-service Checkout {
-  goal: "Perform user checkout"
+service checkout
+  goal "Perform user checkout"
   depends_on:
-    - Payments
+    - payments
   constraints:
-    - PCI_compliant
-}
+    - pciCompliant
 
-service Payments {
-  goal: "Process card payments"
+service payments
+  goal "Process card payments"
   constraints:
-    - PCI_compliant
+    - pciCompliant
   invariants:
     - balance >= 0
     - transaction_count >= 0
-}
-

@@ -153,7 +153,7 @@ export type ServicePolicy = { name: string; entries: ConfigEntry[]; span: Span }
 /**
  * A top-level declaration.
  */
-export type Declaration = { Type: TypeDecl } | { Service: ServiceDecl } | { Component: ComponentDecl } | { Pipeline: PipelineDecl } | { Workflow: WorkflowDecl } | { Agent: AgentDecl } | { Schema: SchemaDecl } | { Policy: PolicyDecl } | { Constraint: ConstraintDecl } | { Mixin: MixinDecl } | { TargetDependencies: TargetDependenciesDecl }
+export type Declaration = { Type: TypeDecl } | { Service: ServiceDecl } | { Component: ComponentDecl } | { Pipeline: PipelineDecl } | { Workflow: WorkflowDecl } | { Agent: AgentDecl } | { Schema: SchemaDecl } | { Policy: PolicyDecl } | { Constraint: ConstraintDecl } | { Mixin: MixinDecl } | { TargetDependencies: TargetDependenciesDecl } | { Entity: EntityDecl } | { Action: ActionDecl } | { Rule: RuleDecl }
 
 /**
  * A complete OmniLang source file.

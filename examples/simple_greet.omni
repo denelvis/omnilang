@@ -1,12 +1,14 @@
 module acme.greet
 
 /// A simple greeting service
-service GreetService {
-  goal: "Say hello to users"
+service greetService
+  goal "Say hello to users"
 
   /// Greets a user by name
-  operation Greet(name: String) -> String {
+  operation Greet
+    inputs:
+      name string
+    outputs:
+      greeting string
     preconditions:
       - name != ""
-  }
-}

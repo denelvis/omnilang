@@ -253,10 +253,12 @@ fn typescript_type_mappings() -> Vec<TypeMapping> {
 /// Build a lookup map from OmniLang type name to target type for quick resolution.
 pub fn build_type_map(target: &str) -> HashMap<String, TypeMapping> {
     let mappings = get_type_mappings(target);
-    mappings
-        .into_iter()
-        .map(|m| (m.omni_type.clone(), m))
-        .collect()
+    let mut map = HashMap::new();
+    for m in mappings {
+        map.insert(m.omni_type.clone(), m.clone());
+        map.insert(m.omni_type.to_lowercase(), m);
+    }
+    map
 }
 
 /// Constraint compatibility information for a target.

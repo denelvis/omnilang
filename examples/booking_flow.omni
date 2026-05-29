@@ -1,9 +1,9 @@
 module acme.booking
 
-orchestrator BookingFlow {
-  goal: "Process flight and hotel booking saga with safety invariants"
+orchestrator BookingFlow
+  goal "Process flight and hotel booking saga with safety invariants"
 
-  states: [ Created, FlightBooked, HotelBooked, Paid, Cancelled, Failed, AnyStateExceptPaid ]
+  states: [Created, FlightBooked, HotelBooked, Paid, Cancelled, Failed, AnyStateExceptPaid]
 
   transitions:
     - Created -> FlightBooked -> HotelBooked -> Paid
@@ -25,11 +25,5 @@ orchestrator BookingFlow {
 
   tests:
     - scenario: "Hotel reservation fails"
-      given:
-        - HotelBooked == false
-      when:
-        - HotelService.Book fails
-      expect:
-        - FlightService.Release called
-        - state == Cancelled
-}
+      given: HotelBooked == false
+      expect: state == Cancelled

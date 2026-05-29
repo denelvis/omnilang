@@ -185,7 +185,7 @@ mixin Auditable {
     - audit_log.last_entry.actor == context.current_user
 }
 
-mixin RateLimited(requests: Int, window: Duration) {
+mixin rateLimited(requests: int, window: duration) {
   constraints:
     - rate_limit(max: requests, per: window)
     - rate_limit_response: 429 with Retry-After header
@@ -196,7 +196,7 @@ mixin RateLimited(requests: Int, window: Duration) {
       expect: last_response.status == 429
 }
 
-mixin Cacheable(ttl: Duration) {
+mixin cacheable(ttl: duration) {
   constraints:
     - cache(strategy: "read-through", ttl: ttl)
     - cache_invalidation: on_write
@@ -282,27 +282,27 @@ generic CrudService<Entity, Id> {
 
   rpc Delete {
     inputs: id: Id
-    outputs: success: Bool
+    outputs: success: bool
     errors: NotFound(id: Id)
   }
 
   rpc List {
     inputs:
-      filters: Partial<Entity>
-      pagination: PaginationParams
-    outputs: PaginatedList<Entity>
+      filters: partial<Entity>
+      pagination: paginationParams
+    outputs: paginatedList<Entity>
   }
 }
 
 // Instantiate for a specific entity
-service ProductService = CrudService<Product, ProductId> {
+service productService = CrudService<product, productId> {
   // Add product-specific extensions
   constraints:
     - soft_delete
 
   rpc Search {
-    inputs: query: String, filters: ProductFilters
-    outputs: PaginatedList<Product>
+    inputs: query: string, filters: productFilters
+    outputs: paginatedList<product>
     constraints:
       - full_text_search
       - latency(p95: <100ms)

@@ -193,7 +193,20 @@ fn main() {
 }
 
 fn cmd_check(path: &str, format: &str, verbose: bool, quiet: bool) -> i32 {
-    let files = collect_omni_files(path);
+    let mut files = collect_omni_files(path);
+    
+    // Resolve project dependencies
+    match resolve_project_dependencies(path) {
+        Ok(dep_files) => {
+            files.extend(dep_files);
+        }
+        Err(e) => {
+            if !quiet {
+                eprintln!("{} dependency resolution failed: {}", "error:".red().bold(), e);
+            }
+            return 1;
+        }
+    }
 
     if files.is_empty() {
         if !quiet {
@@ -206,6 +219,7 @@ fn cmd_check(path: &str, format: &str, verbose: bool, quiet: bool) -> i32 {
         return 1;
     }
 
+    let mut parsed_files = Vec::new();
     let mut total_errors = 0;
     let mut total_warnings = 0;
     let mut _total_infos = 0;
@@ -225,10 +239,29 @@ fn cmd_check(path: &str, format: &str, verbose: bool, quiet: bool) -> i32 {
             }
         };
 
-        // Run the full pipeline
-        let (ir, diagnostics, parse_errors) = omni_analyzer::parse_and_analyze(&source);
+        let (tokens, lex_errors) = omni_parser::Lexer::new(&source).tokenize();
+        let mut file_has_errors = false;
+        for err in &lex_errors {
+            if format == "json" {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "file": file_path,
+                        "level": "error",
+                        "message": err.to_string(),
+                    })
+                );
+            } else if !quiet {
+                eprintln!("{} {} {}", "error:".red().bold(), file_path.dimmed(), err);
+            }
+            file_has_errors = true;
+            total_errors += 1;
+        }
+        if file_has_errors {
+            continue;
+        }
 
-        // Report parse errors
+        let (file, parse_errors) = omni_parser::parser::Parser::new(tokens).parse();
         for err in &parse_errors {
             if format == "json" {
                 println!(
@@ -242,82 +275,90 @@ fn cmd_check(path: &str, format: &str, verbose: bool, quiet: bool) -> i32 {
             } else if !quiet {
                 eprintln!("{} {} {}", "error:".red().bold(), file_path.dimmed(), err);
             }
+            file_has_errors = true;
             total_errors += 1;
         }
+        if file_has_errors {
+            continue;
+        }
 
-        // Report analyzer diagnostics
-        for diag in &diagnostics {
-            match diag.kind {
-                omni_analyzer::DiagnosticKind::Error => {
-                    total_errors += 1;
-                    if format == "json" {
-                        println!(
-                            "{}",
-                            serde_json::json!({
-                                "file": file_path,
-                                "level": "error",
-                                "message": diag.message,
-                            })
-                        );
-                    } else if !quiet {
-                        eprintln!(
-                            "{} {} {}",
-                            "error:".red().bold(),
-                            file_path.dimmed(),
-                            diag.message
-                        );
-                    }
+        parsed_files.push(file);
+    }
+
+    if total_errors > 0 {
+        return 1;
+    }
+
+    // Run project-wide analysis
+    let (ir, diagnostics) = omni_analyzer::analyze_project(&parsed_files);
+
+    // Report analyzer diagnostics
+    for diag in &diagnostics {
+        match diag.kind {
+            omni_analyzer::DiagnosticKind::Error => {
+                total_errors += 1;
+                if format == "json" {
+                    println!(
+                        "{}",
+                        serde_json::json!({
+                            "level": "error",
+                            "message": diag.message,
+                        })
+                    );
+                } else if !quiet {
+                    eprintln!(
+                        "{} {}",
+                        "error:".red().bold(),
+                        diag.message
+                    );
                 }
-                omni_analyzer::DiagnosticKind::Warning => {
-                    total_warnings += 1;
-                    if format == "json" {
-                        println!(
-                            "{}",
-                            serde_json::json!({
-                                "file": file_path,
-                                "level": "warning",
-                                "message": diag.message,
-                            })
-                        );
-                    } else if !quiet {
-                        eprintln!(
-                            "{} {} {}",
-                            "warning:".yellow().bold(),
-                            file_path.dimmed(),
-                            diag.message
-                        );
-                    }
+            }
+            omni_analyzer::DiagnosticKind::Warning => {
+                total_warnings += 1;
+                if format == "json" {
+                    println!(
+                        "{}",
+                        serde_json::json!({
+                            "level": "warning",
+                            "message": diag.message,
+                        })
+                    );
+                } else if !quiet {
+                    eprintln!(
+                        "{} {}",
+                        "warning:".yellow().bold(),
+                        diag.message
+                    );
                 }
-                omni_analyzer::DiagnosticKind::Info => {
-                    _total_infos += 1;
-                    if verbose && format != "json" {
-                        eprintln!(
-                            "{} {} {}",
-                            "info:".blue().bold(),
-                            file_path.dimmed(),
-                            diag.message
-                        );
-                    }
+            }
+            omni_analyzer::DiagnosticKind::Info => {
+                _total_infos += 1;
+                if verbose && format != "json" {
+                    eprintln!(
+                        "{} {}",
+                        "info:".blue().bold(),
+                        diag.message
+                    );
                 }
             }
         }
+    }
 
-        // Print summary for this file if verbose
-        if verbose
-            && !quiet
-            && format != "json"
-            && let Some(ir) = &ir
-        {
-            eprintln!(
-                "  {} {} types, {} services, {} operations, {} tests, {} metrics",
-                "✓".green().bold(),
-                ir.stats.type_count,
-                ir.stats.service_count,
-                ir.stats.operation_count,
-                ir.stats.test_count,
-                ir.stats.metric_count,
-            );
-        }
+    // Print summary if verbose
+    if verbose
+        && !quiet
+        && format != "json"
+        && let Some(ir) = &ir
+    {
+        eprintln!(
+            "  {} {} types, {} services, {} operations, {} tests, {} metrics",
+            "✓".green().bold(),
+            ir.stats.type_count,
+            ir.stats.service_count,
+            ir.stats.operation_count,
+            ir.stats.test_count,
+            ir.stats.metric_count,
+        );
     }
 
     // Final summary
@@ -346,7 +387,13 @@ fn cmd_check(path: &str, format: &str, verbose: bool, quiet: bool) -> i32 {
 }
 
 fn cmd_plan(path: &str) -> i32 {
-    let files = collect_omni_files(path);
+    let mut files = collect_omni_files(path);
+
+    // Resolve project dependencies
+    if let Err(e) = resolve_project_dependencies(path).map(|dep_files| files.extend(dep_files)) {
+        eprintln!("{} dependency resolution failed: {}", "error:".red().bold(), e);
+        return 1;
+    }
 
     if files.is_empty() {
         eprintln!(
@@ -357,7 +404,10 @@ fn cmd_plan(path: &str) -> i32 {
         return 1;
     }
 
-    // Parse and analyze all files
+    let mut parsed_files = Vec::new();
+    let mut total_errors = 0;
+
+    // Parse all files
     for file_path in &files {
         let source = match std::fs::read_to_string(file_path) {
             Ok(s) => s,
@@ -372,100 +422,128 @@ fn cmd_plan(path: &str) -> i32 {
             }
         };
 
-        let (ir, diagnostics, parse_errors) = omni_analyzer::parse_and_analyze(&source);
-
-        if !parse_errors.is_empty() {
-            eprintln!("{} fix parse errors first", "error:".red().bold());
-            return 1;
+        let (tokens, lex_errors) = omni_parser::Lexer::new(&source).tokenize();
+        let mut file_has_errors = false;
+        for err in &lex_errors {
+            eprintln!("{} {} {}", "error:".red().bold(), file_path.dimmed(), err);
+            file_has_errors = true;
+            total_errors += 1;
+        }
+        if file_has_errors {
+            continue;
         }
 
-        let has_errors = diagnostics
-            .iter()
-            .any(|d| d.kind == omni_analyzer::DiagnosticKind::Error);
-        if has_errors {
-            eprintln!("{} fix analysis errors first", "error:".red().bold());
-            return 1;
+        let (file, parse_errors) = omni_parser::parser::Parser::new(tokens).parse();
+        for err in &parse_errors {
+            eprintln!("{} {} {}", "error:".red().bold(), file_path.dimmed(), err);
+            file_has_errors = true;
+            total_errors += 1;
+        }
+        if file_has_errors {
+            continue;
         }
 
-        if let Some(ir) = ir {
-            println!("{}", "📋 Execution Plan".bold());
-            println!();
-            println!("  Module: {}", ir.module_path.join(".").cyan());
-            println!(
-                "  Types:  {} | Services: {} | Operations: {} | Tests: {} | Metrics: {}",
-                ir.stats.type_count.to_string().green(),
-                ir.stats.service_count.to_string().green(),
-                ir.stats.operation_count.to_string().green(),
-                ir.stats.test_count.to_string().green(),
-                ir.stats.metric_count.to_string().green(),
-            );
-            println!();
+        parsed_files.push(file);
+    }
 
-            if !ir.services.is_empty() {
-                println!("  {}", "Build order:".bold());
-                for (i, service) in ir.services.iter().enumerate() {
-                    println!(
-                        "    {}. {} — {} operation(s), {} constraint(s), {} metric(s)",
-                        i + 1,
-                        service.name.cyan(),
-                        service.operation_count,
-                        service.constraint_count,
-                        service.metric_count,
-                    );
-                }
+    if total_errors > 0 {
+        eprintln!("{} fix parse errors first", "error:".red().bold());
+        return 1;
+    }
+
+    let (ir, diagnostics) = omni_analyzer::analyze_project(&parsed_files);
+
+    let has_errors = diagnostics
+        .iter()
+        .any(|d| d.kind == omni_analyzer::DiagnosticKind::Error);
+    if has_errors {
+        for diag in &diagnostics {
+            if diag.kind == omni_analyzer::DiagnosticKind::Error {
+                eprintln!("{} {}", "error:".red().bold(), diag.message);
             }
-            println!();
-
-            let operation_count = ir.stats.operation_count;
-            let constraint_count: usize = ir.services.iter().map(|s| s.constraint_count).sum();
-            let complexity = operation_count + constraint_count * 2 + ir.stats.test_count;
-
-            println!("  {}", "Model Routing Recommendation (ML-based):".bold());
-            let (recommended_model, group_name) = if complexity > 10 {
-                ("Premium Tier (Sonnet-4)".magenta().bold(), "Premium")
-            } else if complexity > 3 {
-                ("Balanced Tier".cyan().bold(), "Balanced")
-            } else {
-                ("Cheap Tier (Haiku)".green().bold(), "Cheap")
-            };
-            println!("    - Recommended: {}", recommended_model);
-            println!(
-                "    - Routing Decision: {} Escalation (cost/quality optimized)",
-                group_name
-            );
-            println!("    - Active Strategy: A/B Test Group B (Sonnet-4 + Z3 checking)");
-            println!();
-
-            println!("  {}", "Predictive Cost & Savings:".bold());
-            let cold_cost = ((ir.stats.service_count as f64 * 0.15)
-                + (operation_count as f64 * 0.05)
-                + (constraint_count as f64 * 0.10)
-                + (ir.stats.test_count as f64 * 0.02))
-                .max(0.05);
-            let cached_cost = cold_cost * 0.125;
-            println!("    - Estimated Cold Build Cost:   ~${:.2}", cold_cost);
-            println!("    - Estimated Cached Build Cost: ~${:.2}", cached_cost);
-            println!("    - Potential Cache Savings:     87.5%");
-            println!();
-
-            println!("  {}", "Cache Pre-warming & Hit Stats:".bold());
-            println!("    - Shared Cache Status: Pre-warmed & Active");
-            println!(
-                "    - Cache Pre-warm Hit Rate: 87.5% (Pre-check matching on refined schemas)"
-            );
-            let warm_time = 0.5 + (complexity as f64 * 0.2);
-            let cold_time = 3.0 + (complexity as f64 * 1.5);
-            println!(
-                "    - Estimated Build Time:        {:.1}s (Warm) / {:.1}s (Cold)",
-                warm_time, cold_time
-            );
-            println!();
-
-            println!(
-                "  {} Ready to build. Run 'omni build' to generate the implementation.",
-                "✓".green().bold()
-            );
         }
+        eprintln!("{} fix analysis errors first", "error:".red().bold());
+        return 1;
+    }
+
+    if let Some(ir) = ir {
+        println!("{}", "📋 Execution Plan".bold());
+        println!();
+        println!("  Module: {}", ir.module_path.join(".").cyan());
+        println!(
+            "  Types:  {} | Services: {} | Operations: {} | Tests: {} | Metrics: {}",
+            ir.stats.type_count.to_string().green(),
+            ir.stats.service_count.to_string().green(),
+            ir.stats.operation_count.to_string().green(),
+            ir.stats.test_count.to_string().green(),
+            ir.stats.metric_count.to_string().green(),
+        );
+        println!();
+
+        if !ir.services.is_empty() {
+            println!("  {}", "Build order:".bold());
+            for (i, service) in ir.services.iter().enumerate() {
+                println!(
+                    "    {}. {} — {} operation(s), {} constraint(s), {} metric(s)",
+                    i + 1,
+                    service.name.cyan(),
+                    service.operation_count,
+                    service.constraint_count,
+                    service.metric_count,
+                );
+            }
+        }
+        println!();
+
+        let operation_count = ir.stats.operation_count;
+        let constraint_count: usize = ir.services.iter().map(|s| s.constraint_count).sum();
+        let complexity = operation_count + constraint_count * 2 + ir.stats.test_count;
+
+        println!("  {}", "Model Routing Recommendation (ML-based):".bold());
+        let (recommended_model, group_name) = if complexity > 10 {
+            ("Premium Tier (Sonnet-4)".magenta().bold(), "Premium")
+        } else if complexity > 3 {
+            ("Balanced Tier".cyan().bold(), "Balanced")
+        } else {
+            ("Cheap Tier (Haiku)".green().bold(), "Cheap")
+        };
+        println!("    - Recommended: {}", recommended_model);
+        println!(
+            "    - Routing Decision: {} Escalation (cost/quality optimized)",
+            group_name
+        );
+        println!("    - Active Strategy: A/B Test Group B (Sonnet-4 + Z3 checking)");
+        println!();
+
+        println!("  {}", "Predictive Cost & Savings:".bold());
+        let cold_cost = ((ir.stats.service_count as f64 * 0.15)
+            + (operation_count as f64 * 0.05)
+            + (constraint_count as f64 * 0.10)
+            + (ir.stats.test_count as f64 * 0.02))
+            .max(0.05);
+        let cached_cost = cold_cost * 0.125;
+        println!("    - Estimated Cold Build Cost:   ~${:.2}", cold_cost);
+        println!("    - Estimated Cached Build Cost: ~${:.2}", cached_cost);
+        println!("    - Potential Cache Savings:     87.5%");
+        println!();
+
+        println!("  {}", "Cache Pre-warming & Hit Stats:".bold());
+        println!("    - Shared Cache Status: Pre-warmed & Active");
+        println!(
+            "    - Cache Pre-warm Hit Rate: 87.5% (Pre-check matching on refined schemas)"
+        );
+        let warm_time = 0.5 + (complexity as f64 * 0.2);
+        let cold_time = 3.0 + (complexity as f64 * 1.5);
+        println!(
+            "    - Estimated Build Time:        {:.1}s (Warm) / {:.1}s (Cold)",
+            warm_time, cold_time
+        );
+        println!();
+
+        println!(
+            "  {} Ready to build. Run 'omni build' to generate the implementation.",
+            "✓".green().bold()
+        );
     }
 
     0
@@ -629,7 +707,14 @@ fn cmd_build(
     }
 
     // 4. Collect and process files
-    let files = collect_omni_files(path);
+    let mut files = collect_omni_files(path);
+
+    // Resolve project dependencies
+    if let Err(e) = resolve_project_dependencies(path).map(|dep_files| files.extend(dep_files)) {
+        eprintln!("{} dependency resolution failed: {}", "error:".red().bold(), e);
+        return 1;
+    }
+
     if files.is_empty() {
         eprintln!(
             "{} no .omni files found in '{}'",
@@ -650,7 +735,8 @@ fn cmd_build(
         return 1;
     }
 
-    let mut exit_code = 0;
+    let mut parsed_files = Vec::new();
+    let mut total_errors = 0;
 
     for file_path in &files {
         let source = match std::fs::read_to_string(file_path) {
@@ -667,132 +753,141 @@ fn cmd_build(
         };
 
         let (tokens, lex_errors) = omni_parser::Lexer::new(&source).tokenize();
-        let mut has_errors = false;
+        let mut file_has_errors = false;
         for err in &lex_errors {
             eprintln!("{} {} {}", "error:".red().bold(), file_path.dimmed(), err);
-            has_errors = true;
+            file_has_errors = true;
+            total_errors += 1;
         }
-        if has_errors {
-            return 1;
+        if file_has_errors {
+            continue;
         }
 
-        let (mut ast_file, parse_errors) = omni_parser::parser::Parser::new(tokens).parse();
+        let (file, parse_errors) = omni_parser::parser::Parser::new(tokens).parse();
         for err in &parse_errors {
             eprintln!("{} {} {}", "error:".red().bold(), file_path.dimmed(), err);
-            has_errors = true;
+            file_has_errors = true;
+            total_errors += 1;
         }
-        if has_errors {
-            return 1;
-        }
-
-        // Inject target dependencies from omni.toml
-        inject_omni_toml_dependencies(&mut ast_file);
-
-        let (ir, diagnostics) = omni_analyzer::analyze(&ast_file);
-
-        // Report analyzer diagnostics
-        for diag in &diagnostics {
-            match diag.kind {
-                omni_analyzer::DiagnosticKind::Error => {
-                    eprintln!(
-                        "{} {} {}",
-                        "error:".red().bold(),
-                        file_path.dimmed(),
-                        diag.message
-                    );
-                    has_errors = true;
-                }
-                omni_analyzer::DiagnosticKind::Warning => {
-                    eprintln!(
-                        "{} {} {}",
-                        "warning:".yellow().bold(),
-                        file_path.dimmed(),
-                        diag.message
-                    );
-                }
-                _ => {}
-            }
+        if file_has_errors {
+            continue;
         }
 
-        if has_errors {
-            return 1;
-        }
+        parsed_files.push(file);
+    }
 
-        if let Some(ir) = ir {
-            // Write IR to cache
-            let file_stem = std::path::Path::new(file_path)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("spec");
-            let ir_file_name = format!("{}_ir.json", file_stem);
-            let ir_path = cache_dir.join(&ir_file_name);
+    if total_errors > 0 {
+        return 1;
+    }
 
-            let ir_json = match serde_json::to_string_pretty(&ir) {
-                Ok(json) => json,
-                Err(e) => {
-                    eprintln!(
-                        "{} failed to serialize Spec IR: {}",
-                        "error:".red().bold(),
-                        e
-                    );
-                    return 1;
-                }
-            };
+    // Inject target dependencies from omni.toml into the first file
+    if !parsed_files.is_empty() {
+        inject_omni_toml_dependencies(&mut parsed_files[0]);
+    }
 
-            if let Err(e) = std::fs::write(&ir_path, ir_json) {
+    let (ir, diagnostics) = omni_analyzer::analyze_project(&parsed_files);
+
+    // Report analyzer diagnostics
+    let mut has_errors = false;
+    for diag in &diagnostics {
+        match diag.kind {
+            omni_analyzer::DiagnosticKind::Error => {
                 eprintln!(
-                    "{} failed to write Spec IR to cache: {}",
+                    "{} {}",
+                    "error:".red().bold(),
+                    diag.message
+                );
+                has_errors = true;
+            }
+            omni_analyzer::DiagnosticKind::Warning => {
+                eprintln!(
+                    "{} {}",
+                    "warning:".yellow().bold(),
+                    diag.message
+                );
+            }
+            _ => {}
+        }
+    }
+
+    if has_errors {
+        return 1;
+    }
+
+    let mut exit_code = 0;
+
+    if let Some(ir) = ir {
+        let ir_file_name = if files.len() == 1 {
+            let stem = std::path::Path::new(&files[0]).file_stem().and_then(|s| s.to_str()).unwrap_or("spec");
+            format!("{}_ir.json", stem)
+        } else {
+            "project_ir.json".to_string()
+        };
+        // Write IR to cache
+        let ir_path = cache_dir.join(ir_file_name);
+
+        let ir_json = match serde_json::to_string_pretty(&ir) {
+            Ok(json) => json,
+            Err(e) => {
+                eprintln!(
+                    "{} failed to serialize Spec IR: {}",
                     "error:".red().bold(),
                     e
                 );
                 return 1;
             }
+        };
 
-            println!(
-                "{} Serialized Spec IR to {}",
-                "✓".green().bold(),
-                ir_path.to_string_lossy().cyan()
+        if let Err(e) = std::fs::write(&ir_path, ir_json) {
+            eprintln!(
+                "{} failed to write Spec IR to cache: {}",
+                "error:".red().bold(),
+                e
             );
+            return 1;
+        }
 
-            // Execute runtime
-            println!("{} Invoking generator runtime...", "🚀".green());
-            let mut cmd = std::process::Command::new("node");
-            cmd.arg(runtime_dir.join("dist").join("index.js"))
-                .arg(&ir_path)
-                .arg("--output")
-                .arg("build")
-                .arg("--target")
-                .arg(target);
+        println!(
+            "{} Serialized Spec IR to {}",
+            "✓".green().bold(),
+            ir_path.to_string_lossy().cyan()
+        );
 
-            if parallel {
-                cmd.arg("--parallel");
-            }
-            if full_stack {
-                cmd.arg("--full-stack");
-            }
-            // wire_format is deprecated — always JSON, don't pass to runtime
-            if let Some(max_budget) = final_budget {
-                cmd.arg("--budget").arg(format!("{:.2}", max_budget));
-            }
+        // Execute runtime
+        println!("{} Invoking generator runtime...", "🚀".green());
+        let mut cmd = std::process::Command::new("node");
+        cmd.arg(runtime_dir.join("dist").join("index.js"))
+            .arg(&ir_path)
+            .arg("--output")
+            .arg("build")
+            .arg("--target")
+            .arg(target);
 
-            let status = cmd.status();
+        if parallel {
+            cmd.arg("--parallel");
+        }
+        if full_stack {
+            cmd.arg("--full-stack");
+        }
+        if let Some(max_budget) = final_budget {
+            cmd.arg("--budget").arg(format!("{:.2}", max_budget));
+        }
 
-            match status {
-                Ok(stat) => {
-                    if !stat.success() {
-                        exit_code = stat.code().unwrap_or(1);
-                        break;
-                    }
+        let status = cmd.status();
+
+        match status {
+            Ok(stat) => {
+                if !stat.success() {
+                    exit_code = stat.code().unwrap_or(1);
                 }
-                Err(e) => {
-                    eprintln!(
-                        "{} failed to execute code generator runtime: {}",
-                        "error:".red().bold(),
-                        e
-                    );
-                    exit_code = 1;
-                    break;
-                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "{} failed to execute code generator runtime: {}",
+                    "error:".red().bold(),
+                    e
+                );
+                exit_code = 1;
             }
         }
     }
@@ -1273,6 +1368,119 @@ fn print_human_report(
     }
 }
 
+fn resolve_project_dependencies(project_path: &str) -> Result<Vec<String>, String> {
+    let mut dependency_files = Vec::new();
+    
+    let p = Path::new(project_path);
+    let manifest_path = if p.is_dir() && p.join("omni.toml").is_file() {
+        Some(p.join("omni.toml"))
+    } else if p.is_file() && p.parent().is_some_and(|parent| parent.join("omni.toml").is_file()) {
+        Some(p.parent().unwrap().join("omni.toml"))
+    } else {
+        find_omni_toml()
+    };
+    
+    if let Some(manifest_path) = manifest_path {
+        if let Ok(toml_content) = std::fs::read_to_string(&manifest_path) {
+            if let Ok(manifest) = omni_analyzer::module_system::parse_manifest(&toml_content) {
+                let project_root = manifest_path.parent().unwrap();
+                for dep in &manifest.dependencies {
+                    if let Some(path_val) = &dep.path {
+                        let dep_path = project_root.join(path_val);
+                        if dep_path.exists() {
+                            let collected = collect_omni_files(&dep_path.to_string_lossy());
+                            dependency_files.extend(collected);
+                        }
+                    } else if let Some(git_url) = &dep.git {
+                        let dep_cache_path = resolve_git_dependency(
+                            &dep.name,
+                            git_url,
+                            dep.tag.as_deref(),
+                            dep.branch.as_deref(),
+                            dep.rev.as_deref(),
+                        )?;
+                        let collected = collect_omni_files(&dep_cache_path.to_string_lossy());
+                        dependency_files.extend(collected);
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(dependency_files)
+}
+
+fn resolve_git_dependency(
+    dep_name: &str,
+    git_url: &str,
+    tag: Option<&str>,
+    branch: Option<&str>,
+    rev: Option<&str>,
+) -> Result<PathBuf, String> {
+    let cache_dir = Path::new(".omni-cache").join("deps");
+    if let Err(e) = std::fs::create_dir_all(&cache_dir) {
+        return Err(format!("failed to create dependency cache directory: {}", e));
+    }
+    
+    let dep_dir = cache_dir.join(dep_name);
+    if dep_dir.exists() {
+        let output = std::process::Command::new("git")
+            .arg("fetch")
+            .current_dir(&dep_dir)
+            .output()
+            .map_err(|e| format!("failed to execute git fetch: {}", e))?;
+        if !output.status.success() {
+            return Err(format!(
+                "git fetch failed for dependency '{}': {}",
+                dep_name,
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+    } else {
+        let output = std::process::Command::new("git")
+            .arg("clone")
+            .arg(git_url)
+            .arg(&dep_dir)
+            .output()
+            .map_err(|e| format!("failed to execute git clone: {}", e))?;
+        if !output.status.success() {
+            return Err(format!(
+                "git clone failed for dependency '{}': {}",
+                dep_name,
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+    }
+    
+    let ref_target = if let Some(t) = tag {
+        t
+    } else if let Some(b) = branch {
+        b
+    } else if let Some(r) = rev {
+        r
+    } else {
+        "HEAD"
+    };
+    
+    let output = std::process::Command::new("git")
+        .arg("checkout")
+        .arg(ref_target)
+        .current_dir(&dep_dir)
+        .output()
+        .map_err(|e| format!("failed to execute git checkout: {}", e))?;
+        
+    if !output.status.success() {
+        return Err(format!(
+            "git checkout '{}' failed for dependency '{}': {}",
+            ref_target,
+            dep_name,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    
+    Ok(dep_dir)
+}
+
 /// Collect all `.omni` files from a path (file or directory).
 fn collect_omni_files(path: &str) -> Vec<String> {
     let p = Path::new(path);
@@ -1486,7 +1694,12 @@ fn cmd_publish(path: &str) -> i32 {
     );
 
     // 1. Run check internally
-    let files = collect_omni_files(path);
+    let mut files = collect_omni_files(path);
+    if let Err(e) = resolve_project_dependencies(path).map(|dep_files| files.extend(dep_files)) {
+        eprintln!("{} dependency resolution failed: {}", "error:".red().bold(), e);
+        return 1;
+    }
+
     if files.is_empty() {
         eprintln!(
             "{} No .omni files found in '{}'",
@@ -1497,6 +1710,9 @@ fn cmd_publish(path: &str) -> i32 {
     }
 
     println!("   {} Running validation checks...", "🔍".cyan());
+    let mut parsed_files = Vec::new();
+    let mut total_errors = 0;
+
     for file_path in &files {
         let source = match std::fs::read_to_string(file_path) {
             Ok(s) => s,
@@ -1511,20 +1727,53 @@ fn cmd_publish(path: &str) -> i32 {
             }
         };
 
-        let (_, diagnostics, parse_errors) = omni_analyzer::parse_and_analyze(&source);
-        let mut has_errors = !parse_errors.is_empty();
-        for diag in &diagnostics {
-            if diag.kind == omni_analyzer::DiagnosticKind::Error {
-                has_errors = true;
-            }
+        let (tokens, lex_errors) = omni_parser::Lexer::new(&source).tokenize();
+        let mut file_has_errors = false;
+        for err in &lex_errors {
+            eprintln!("{} {} {}", "error:".red().bold(), file_path.dimmed(), err);
+            file_has_errors = true;
+            total_errors += 1;
         }
-        if has_errors {
-            eprintln!(
-                "{} Package validation failed. Fix errors before publishing.",
-                "error:".red().bold()
-            );
-            return 1;
+        if file_has_errors {
+            continue;
         }
+
+        let (file, parse_errors) = omni_parser::parser::Parser::new(tokens).parse();
+        for err in &parse_errors {
+            eprintln!("{} {} {}", "error:".red().bold(), file_path.dimmed(), err);
+            file_has_errors = true;
+            total_errors += 1;
+        }
+        if file_has_errors {
+            continue;
+        }
+
+        parsed_files.push(file);
+    }
+
+    if total_errors > 0 {
+        eprintln!(
+            "{} Package validation failed. Fix errors before publishing.",
+            "error:".red().bold()
+        );
+        return 1;
+    }
+
+    let (_, diagnostics) = omni_analyzer::analyze_project(&parsed_files);
+    let mut has_errors = false;
+    for diag in &diagnostics {
+        if diag.kind == omni_analyzer::DiagnosticKind::Error {
+            eprintln!("{} {}", "error:".red().bold(), diag.message);
+            has_errors = true;
+        }
+    }
+
+    if has_errors {
+        eprintln!(
+            "{} Package validation failed. Fix errors before publishing.",
+            "error:".red().bold()
+        );
+        return 1;
     }
 
     // 2. Mock publishing logic
@@ -1735,7 +1984,12 @@ fn cmd_docs(path: &str, output: &str) -> i32 {
     }
 
     // 4. Collect and process files
-    let files = collect_omni_files(path);
+    let mut files = collect_omni_files(path);
+    if let Err(e) = resolve_project_dependencies(path).map(|dep_files| files.extend(dep_files)) {
+        eprintln!("{} dependency resolution failed: {}", "error:".red().bold(), e);
+        return 1;
+    }
+
     if files.is_empty() {
         eprintln!(
             "{} no .omni files found in '{}'",
@@ -1756,6 +2010,9 @@ fn cmd_docs(path: &str, output: &str) -> i32 {
         return 1;
     }
 
+    let mut parsed_files = Vec::new();
+    let mut total_errors = 0;
+
     for file_path in &files {
         let source = match std::fs::read_to_string(file_path) {
             Ok(s) => s,
@@ -1770,86 +2027,102 @@ fn cmd_docs(path: &str, output: &str) -> i32 {
             }
         };
 
-        // Parse and analyze
-        let (ir, diagnostics, parse_errors) = omni_analyzer::parse_and_analyze(&source);
+        let (tokens, lex_errors) = omni_parser::Lexer::new(&source).tokenize();
+        let mut file_has_errors = false;
+        for err in &lex_errors {
+            eprintln!("{} {} {}", "error:".red().bold(), file_path.dimmed(), err);
+            file_has_errors = true;
+            total_errors += 1;
+        }
+        if file_has_errors {
+            continue;
+        }
 
-        // Report parse errors
-        let mut has_errors = false;
+        let (file, parse_errors) = omni_parser::parser::Parser::new(tokens).parse();
         for err in &parse_errors {
             eprintln!("{} {} {}", "error:".red().bold(), file_path.dimmed(), err);
+            file_has_errors = true;
+            total_errors += 1;
+        }
+        if file_has_errors {
+            continue;
+        }
+
+        parsed_files.push(file);
+    }
+
+    if total_errors > 0 {
+        return 1;
+    }
+
+    let (ir, diagnostics) = omni_analyzer::analyze_project(&parsed_files);
+
+    // Report analyzer diagnostics
+    let mut has_errors = false;
+    for diag in &diagnostics {
+        if diag.kind == omni_analyzer::DiagnosticKind::Error {
+            eprintln!("{} {}", "error:".red().bold(), diag.message);
             has_errors = true;
         }
+    }
 
-        // Report analyzer diagnostics
-        for diag in &diagnostics {
-            if diag.kind == omni_analyzer::DiagnosticKind::Error {
+    if has_errors {
+        return 1;
+    }
+
+    if let Some(ir) = ir {
+        let ir_file_name = if files.len() == 1 {
+            let stem = std::path::Path::new(&files[0]).file_stem().and_then(|s| s.to_str()).unwrap_or("spec");
+            format!("{}_ir.json", stem)
+        } else {
+            "project_ir.json".to_string()
+        };
+        let ir_path = cache_dir.join(ir_file_name);
+
+        let ir_json = match serde_json::to_string_pretty(&ir) {
+            Ok(json) => json,
+            Err(e) => {
                 eprintln!(
-                    "{} {} {}",
-                    "error:".red().bold(),
-                    file_path.dimmed(),
-                    diag.message
-                );
-                has_errors = true;
-            }
-        }
-
-        if has_errors {
-            return 1;
-        }
-
-        if let Some(ir) = ir {
-            let file_stem = std::path::Path::new(file_path)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("spec");
-            let ir_file_name = format!("{}_ir.json", file_stem);
-            let ir_path = cache_dir.join(&ir_file_name);
-
-            let ir_json = match serde_json::to_string_pretty(&ir) {
-                Ok(json) => json,
-                Err(e) => {
-                    eprintln!(
-                        "{} failed to serialize Spec IR: {}",
-                        "error:".red().bold(),
-                        e
-                    );
-                    return 1;
-                }
-            };
-
-            if let Err(e) = std::fs::write(&ir_path, ir_json) {
-                eprintln!(
-                    "{} failed to write Spec IR to cache: {}",
+                    "{} failed to serialize Spec IR: {}",
                     "error:".red().bold(),
                     e
                 );
                 return 1;
             }
+        };
 
-            // Execute doc generator in runtime
-            let mut cmd = std::process::Command::new("node");
-            cmd.arg(runtime_dir.join("dist").join("index.js"))
-                .arg(&ir_path)
-                .arg("--output")
-                .arg(output)
-                .arg("--mode")
-                .arg("docs");
+        if let Err(e) = std::fs::write(&ir_path, ir_json) {
+            eprintln!(
+                "{} failed to write Spec IR to cache: {}",
+                "error:".red().bold(),
+                e
+            );
+            return 1;
+        }
 
-            let status = cmd.status();
-            match status {
-                Ok(stat) => {
-                    if !stat.success() {
-                        return stat.code().unwrap_or(1);
-                    }
+        // Execute doc generator in runtime
+        let mut cmd = std::process::Command::new("node");
+        cmd.arg(runtime_dir.join("dist").join("index.js"))
+            .arg(&ir_path)
+            .arg("--output")
+            .arg(output)
+            .arg("--mode")
+            .arg("docs");
+
+        let status = cmd.status();
+        match status {
+            Ok(stat) => {
+                if !stat.success() {
+                    return stat.code().unwrap_or(1);
                 }
-                Err(e) => {
-                    eprintln!(
-                        "{} failed to run doc generator: {}",
-                        "error:".red().bold(),
-                        e
-                    );
-                    return 1;
-                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "{} failed to run doc generator: {}",
+                    "error:".red().bold(),
+                    e
+                );
+                return 1;
             }
         }
     }

@@ -32,7 +32,7 @@ OmniLang is not another programming language. It is a **verification-first speci
 ## Quick Example
 
 ```omnilang
-service Checkout {
+service checkout {
   goal: "Process payment in <200ms at p95"
 
   constraints:
@@ -41,11 +41,11 @@ service Checkout {
     - no_plaintext_cards
 
   inputs:
-    order_id: UUID
-    payment_token: Token
+    order_id: uuid
+    payment_token: token
 
   outputs:
-    status: PaymentStatus
+    status: paymentStatus
 
   budget:
     max_generation_cost: $0.10
@@ -56,7 +56,7 @@ service Checkout {
       expect: "Same result, no duplicate charge"
 
     - scenario: "Expired token"
-      expect: status == PaymentStatus.Declined
+      expect: status == paymentStatus.Declined
       expect_log: contains("token_expired")
 
   evidence:
