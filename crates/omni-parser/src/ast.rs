@@ -242,7 +242,6 @@ pub struct ServiceDecl {
     pub span: Span,
 }
 
-
 /// A reusable mixin block.
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct MixinDecl {
@@ -499,7 +498,6 @@ pub struct WorkflowDecl {
     pub span: Span,
 }
 
-
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct WorkflowTransition {
     pub from: String,
@@ -633,7 +631,16 @@ pub enum PolicyClause {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, specta::Type, serde::Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    specta::Type,
+    serde::Deserialize,
 )]
 pub enum TrustLevel {
     Speculative,
@@ -668,4 +675,3 @@ pub struct DependencyPackage {
     pub version: String,
     pub span: Span,
 }
-

@@ -1,9 +1,9 @@
 use omni_analyzer::SpecIR;
-use omni_analyzer::ir::{TypeDef, GeneratorConfig, ServiceDef, SpecStats};
+use omni_analyzer::ir::{GeneratorConfig, ServiceDef, SpecStats, TypeDef};
 use omni_analyzer::type_mapping::TypeMapping;
-use omni_parser::ast::*;
 use omni_parser::Span;
-use specta::ts::{export, ExportConfiguration, BigIntExportBehavior};
+use omni_parser::ast::*;
+use specta::ts::{BigIntExportBehavior, ExportConfiguration, export};
 use std::fs;
 
 #[test]
@@ -158,8 +158,7 @@ fn export_typescript_types() {
     ts_defs.push_str("\n");
 
     let output_path = "../../runtime/src/types.ts";
-    fs::write(output_path, ts_defs)
-        .expect("Failed to write types.ts file");
+    fs::write(output_path, ts_defs).expect("Failed to write types.ts file");
 
     println!("TypeScript types successfully exported to {}", output_path);
 }

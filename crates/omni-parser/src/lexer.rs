@@ -508,7 +508,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn test_keywords() {
         let kinds = lex_kinds("tests scenario given when expect assert forall");

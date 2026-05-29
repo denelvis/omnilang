@@ -133,7 +133,8 @@ pub fn build_spec_ir(
                 });
             }
             Declaration::Service(s) => {
-                let operation_names: Vec<String> = s.operations.iter().map(|r| r.name.clone()).collect();
+                let operation_names: Vec<String> =
+                    s.operations.iter().map(|r| r.name.clone()).collect();
                 let constraint_names: Vec<String> =
                     s.constraints.iter().map(|c| c.name.clone()).collect();
                 let metric_names: Vec<String> = s.metrics.iter().map(|m| m.name.clone()).collect();

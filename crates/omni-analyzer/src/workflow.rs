@@ -1,6 +1,6 @@
 use crate::{Diagnostic, DiagnosticKind};
 use omni_parser::ast::{Declaration, SourceFile, WorkflowDecl};
-use std::collections::{HashSet, VecDeque, HashMap};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 /// Check workflow transitions, detect dead states, and validate state definitions
 pub fn check_workflows(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>) {
@@ -57,7 +57,9 @@ fn validate_workflow_transitions(w: &WorkflowDecl, diagnostics: &mut Vec<Diagnos
                     span: trans.span,
                 });
             }
-        } else if !is_wildcard_state(trans.from.as_str()) && !states_set.contains(trans.from.as_str()) {
+        } else if !is_wildcard_state(trans.from.as_str())
+            && !states_set.contains(trans.from.as_str())
+        {
             diagnostics.push(Diagnostic {
                 kind: DiagnosticKind::Error,
                 message: format!(
@@ -119,7 +121,9 @@ fn detect_dead_states(w: &WorkflowDecl, diagnostics: &mut Vec<Diagnostic>) {
         for src in sources {
             adj.entry(src).or_default().push(trans.to.as_str());
             if let Some(timeout) = &trans.timeout {
-                adj.entry(src).or_default().push(timeout.target_state.as_str());
+                adj.entry(src)
+                    .or_default()
+                    .push(timeout.target_state.as_str());
             }
         }
     }

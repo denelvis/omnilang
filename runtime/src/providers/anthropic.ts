@@ -54,13 +54,17 @@ export class AnthropicProvider implements LLMProvider {
 
   public getMockResponse(systemPrompt: string, userPrompt: string): string {
     const promptLower = userPrompt.toLowerCase();
+    const systemPromptLower = systemPrompt.toLowerCase();
 
     // Detect target from the system prompt
-    if (systemPrompt.toLowerCase().includes("rust")) {
+    if (systemPromptLower.includes("senior rust and test engineer")) {
       return this.getMockRustResponse(promptLower, userPrompt);
     }
-    if (systemPrompt.toLowerCase().includes("python")) {
+    if (systemPromptLower.includes("senior python and test engineer")) {
       return this.getMockPythonResponse(promptLower, userPrompt);
+    }
+    if (systemPromptLower.includes("senior go and test engineer")) {
+      return this.getMockGoResponse(promptLower, userPrompt);
     }
 
     return this.getMockTypeScriptResponse(promptLower, userPrompt, systemPrompt);
@@ -890,6 +894,105 @@ class TestCheckoutService:
         {
           path: `tests/test_${snakeName}.py`,
           content: `from app.services.${snakeName} import ${svcName}\n\n\ndef test_${snakeName}_execute():\n    service = ${svcName}()\n    result = service.execute()\n    assert result["success"] is True\n`
+        }
+      ]
+    });
+  }
+
+  private getMockGoResponse(promptLower: string, rawPrompt: string): string {
+    // Checkout service in Go
+    if (promptLower.includes("checkoutservice") || promptLower.includes("\"checkout\"")) {
+      return JSON.stringify({
+        files: [
+          {
+            path: "services/checkout.go",
+            content: `package services
+
+import (
+	"errors"
+	"strings"
+)
+
+var (
+	ErrMissingCustomerID = errors.New("customer ID is required")
+	ErrEmptyCart         = errors.New("cart is empty")
+)
+
+type CheckoutService struct{}
+
+func NewCheckoutService() *CheckoutService {
+	return &CheckoutService{}
+}
+
+func (s *CheckoutService) PlaceOrder(customerID string, items []string) (string, error) {
+	if strings.TrimSpace(customerID) == "" {
+		return "", ErrMissingCustomerID
+	}
+	if len(items) == 0 {
+		return "", ErrEmptyCart
+	}
+	return "order-12345", nil
+}
+`
+          },
+          {
+            path: "services/checkout_test.go",
+            content: `package services
+
+import (
+	"testing"
+)
+
+func TestPlaceOrderSuccess(t *testing.T) {
+	s := NewCheckoutService()
+	id, err := s.PlaceOrder("cust_999", []string{"prod_1"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if id != "order-12345" {
+		t.Errorf("expected order-12345, got %s", id)
+	}
+}
+
+func TestPlaceOrderMissingCustomerID(t *testing.T) {
+	s := NewCheckoutService()
+	_, err := s.PlaceOrder("", []string{"prod_1"})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err != ErrMissingCustomerID {
+		t.Errorf("expected ErrMissingCustomerID, got %v", err)
+	}
+}
+
+func TestPlaceOrderEmptyCart(t *testing.T) {
+	s := NewCheckoutService()
+	_, err := s.PlaceOrder("cust_999", []string{})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err != ErrEmptyCart {
+		t.Errorf("expected ErrEmptyCart, got %v", err)
+	}
+}
+`
+          }
+        ]
+      });
+    }
+
+    // Default fallback for Go — dynamic name
+    const svcName = this.extractServiceName(rawPrompt);
+    const snakeName = this.toSnakeCase(svcName);
+    return JSON.stringify({
+      files: [
+        {
+          path: `services/${snakeName}.go`,
+          content: `package services\n\ntype ${svcName} struct{}\n\nfunc New${svcName}() *${svcName} {\n    return &${svcName}{}\n}\n\nfunc (s *${svcName}) Execute() (string, error) {\n    return "success", nil\n}\n`
+        },
+        {
+          path: `services/${snakeName}_test.go`,
+          content: `package services\n\nimport "testing"\n\nfunc Test${svcName}Execute(t *testing.T) {\n    s := New${svcName}()\n    res, err := s.Execute()\n    if err != nil {\n        t.Fatalf("unexpected error: %v", err)\n    }\n    if res != "success" {\n        t.Errorf("expected success, got %s", res)\n    }\n}\n`
         }
       ]
     });

@@ -2385,7 +2385,7 @@ fn inject_omni_toml_dependencies(file: &mut omni_parser::ast::SourceFile) {
                                 omni_parser::ast::TargetDependenciesDecl {
                                     entries,
                                     span: omni_parser::Span { start: 0, end: 0 },
-                                }
+                                },
                             );
                             file.declarations.push(decl);
                         }
@@ -2452,7 +2452,9 @@ mod tests {
     #[test]
     fn test_cmd_check() {
         let manifest = find_omni_toml().expect("failed to find omni.toml");
-        let root = manifest.parent().expect("failed to get parent of omni.toml");
+        let root = manifest
+            .parent()
+            .expect("failed to get parent of omni.toml");
         let path = root.join("examples").join("simple_greet.omni");
         let path_str = path.to_string_lossy();
         assert_eq!(cmd_check(&path_str, "text", false, false), 0);
@@ -2461,7 +2463,9 @@ mod tests {
     #[test]
     fn test_cmd_plan() {
         let manifest = find_omni_toml().expect("failed to find omni.toml");
-        let root = manifest.parent().expect("failed to get parent of omni.toml");
+        let root = manifest
+            .parent()
+            .expect("failed to get parent of omni.toml");
         let path = root.join("examples").join("simple_greet.omni");
         let path_str = path.to_string_lossy();
         assert_eq!(cmd_plan(&path_str), 0);
@@ -2482,10 +2486,10 @@ mod tests {
         inject_omni_toml_dependencies(&mut source_file);
 
         assert!(!source_file.declarations.is_empty());
-        let has_deps = source_file.declarations.iter().any(|decl| {
-            matches!(decl, omni_parser::ast::Declaration::TargetDependencies(_))
-        });
+        let has_deps = source_file
+            .declarations
+            .iter()
+            .any(|decl| matches!(decl, omni_parser::ast::Declaration::TargetDependencies(_)));
         assert!(has_deps);
     }
 }
-
