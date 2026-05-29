@@ -27,6 +27,8 @@ export class VerificationRunner {
         return this.verifyRust();
       case "python":
         return this.verifyPython();
+      case "go":
+        return this.verifyGo();
       case "typescript":
       default:
         return this.verifyTypeScript();
@@ -210,6 +212,26 @@ export class VerificationRunner {
 
     console.log(`     ${pc.green("✓")} All Python tests passed`);
 
+    return { success: true };
+  }
+
+  private verifyGo(): VerificationReport {
+    console.log(pc.yellow("     Running go test..."));
+    const testRes = spawnSync("go", ["test", "./..."], {
+      cwd: this.outputDir,
+      stdio: "pipe",
+      shell: true,
+    });
+
+    if (testRes.status !== 0) {
+      const errorText = testRes.stdout.toString() + testRes.stderr.toString();
+      return {
+        success: false,
+        testError: errorText,
+      };
+    }
+
+    console.log(`     ${pc.green("✓")} All Go tests passed`);
     return { success: true };
   }
 }

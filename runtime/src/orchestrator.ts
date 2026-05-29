@@ -33,8 +33,8 @@ export class Orchestrator {
   constructor(options: OrchestratorOptions) {
     this.irPath = options.irPath;
     this.outputDir = path.resolve(options.outputDir);
-    if (options.target !== "typescript") {
-      throw new Error(`Target '${options.target}' is not supported. Only 'typescript' is supported.`);
+    if (options.target !== "typescript" && options.target !== "rust" && options.target !== "python" && options.target !== "go") {
+      throw new Error(`Target '${options.target}' is not supported. Supported targets: 'typescript', 'rust', 'python', 'go'.`);
     }
     this.target = options.target;
     this.fullStack = !!options.fullStack;
@@ -239,7 +239,94 @@ describe("${w.name}StateMachine", () => {
   }
 
   private async initializeBuildDirectory(ir: SpecIR): Promise<void> {
-    await this.initializeTypeScriptDirectory(ir);
+    if (this.target === "rust") {
+      await this.initializeRustDirectory(ir);
+    } else if (this.target === "python") {
+      await this.initializePythonDirectory(ir);
+    } else if (this.target === "go") {
+      await this.initializeGoDirectory(ir);
+    } else {
+      await this.initializeTypeScriptDirectory(ir);
+    }
+  }
+
+  private async initializeGoDirectory(ir: SpecIR): Promise<void> {
+    // 1. Create directory structure
+    fs.mkdirSync(this.outputDir, { recursive: true });
+
+    const servicesDir = path.join(this.outputDir, "services");
+    fs.mkdirSync(servicesDir, { recursive: true });
+
+    // 2. Write go.mod
+    const goModPath = path.join(this.outputDir, "go.mod");
+    if (!fs.existsSync(goModPath)) {
+      const goMod = `module omni-build
+
+go 1.21
+`;
+      fs.writeFileSync(goModPath, goMod, "utf8");
+    }
+  }
+
+  private async initializeRustDirectory(ir: SpecIR): Promise<void> {
+    // 1. Create directory structure
+    fs.mkdirSync(this.outputDir, { recursive: true });
+
+    const servicesDir = path.join(this.outputDir, "src", "services");
+    fs.mkdirSync(servicesDir, { recursive: true });
+
+    const testsDir = path.join(this.outputDir, "tests");
+    fs.mkdirSync(testsDir, { recursive: true });
+
+    // 2. Write Cargo.toml
+    const cargoTomlPath = path.join(this.outputDir, "Cargo.toml");
+    if (!fs.existsSync(cargoTomlPath)) {
+      const cargoToml = `[package]
+name = "omni-build"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thiserror = "1.0"
+`;
+      fs.writeFileSync(cargoTomlPath, cargoToml, "utf8");
+    }
+
+    // 3. Write src/lib.rs
+    const libRsPath = path.join(this.outputDir, "src", "lib.rs");
+    if (!fs.existsSync(libRsPath)) {
+      fs.writeFileSync(libRsPath, "pub mod services;\n", "utf8");
+    }
+
+    // 4. Write src/services/mod.rs
+    const modRsPath = path.join(servicesDir, "mod.rs");
+    if (!fs.existsSync(modRsPath)) {
+      fs.writeFileSync(modRsPath, "", "utf8");
+    }
+  }
+
+  private async initializePythonDirectory(ir: SpecIR): Promise<void> {
+    // 1. Create directory structure
+    fs.mkdirSync(this.outputDir, { recursive: true });
+
+    const servicesDir = path.join(this.outputDir, "app", "services");
+    fs.mkdirSync(servicesDir, { recursive: true });
+
+    const testsDir = path.join(this.outputDir, "tests");
+    fs.mkdirSync(testsDir, { recursive: true });
+
+    // 2. Write empty __init__.py files for packages
+    const initFiles = [
+      path.join(this.outputDir, "app", "__init__.py"),
+      path.join(this.outputDir, "app", "services", "__init__.py"),
+      path.join(this.outputDir, "tests", "__init__.py"),
+    ];
+
+    for (const initFile of initFiles) {
+      if (!fs.existsSync(initFile)) {
+        fs.writeFileSync(initFile, "", "utf8");
+      }
+    }
   }
 
   private async initializeTypeScriptDirectory(ir: SpecIR): Promise<void> {
