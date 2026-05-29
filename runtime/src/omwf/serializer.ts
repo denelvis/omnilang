@@ -43,8 +43,8 @@ export function serialize(ir: any): string {
     for (const svc of ir.services) {
       lines.push(`  ${svc.name}:`);
       if (svc.goal) lines.push(`    goal: "${svc.goal}"`);
-      if (svc.rpc_names && svc.rpc_names.length > 0) {
-        lines.push(`    rpcs: ${svc.rpc_names.join(", ")}`);
+      if (svc.operation_names && svc.operation_names.length > 0) {
+        lines.push(`    operations: ${svc.operation_names.join(", ")}`);
       }
       if (svc.constraint_names && svc.constraint_names.length > 0) {
         lines.push(`    constraints: ${svc.constraint_names.join(", ")}`);
@@ -60,7 +60,7 @@ export function serialize(ir: any): string {
   if (ir.stats) {
     lines.push(`## STATS`);
     const s = ir.stats;
-    lines.push(`  types=${s.total_types} services=${s.total_services} rpcs=${s.total_rpcs}`);
+    lines.push(`  types=${s.total_types || s.type_count} services=${s.total_services || s.service_count} operations=${s.total_operations || s.operation_count}`);
     lines.push(`  tests=${s.total_tests} constraints=${s.total_constraints}`);
   }
 
@@ -122,7 +122,7 @@ export function deserialize(omwf: string): any {
           result.services.push({
             name: svcMatch[1],
             goal: null,
-            rpc_names: [],
+            operation_names: [],
             constraint_names: [],
             metric_names: [],
             test_count: 0,
@@ -136,8 +136,8 @@ export function deserialize(omwf: string): any {
               case "goal":
                 current.goal = value.replace(/^"|"$/g, "");
                 break;
-              case "rpcs":
-                current.rpc_names = value.split(",").map((s: string) => s.trim());
+              case "operations":
+                current.operation_names = value.split(",").map((s: string) => s.trim());
                 break;
               case "constraints":
                 current.constraint_names = value.split(",").map((s: string) => s.trim());

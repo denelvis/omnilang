@@ -186,8 +186,8 @@ describe("estimateBuildCost", () => {
         {
           name: "UserService",
           goal: null,
-          rpc_count: 2,
-          rpc_names: ["getUser", "createUser"],
+          operation_count: 2,
+          operation_names: ["getUser", "createUser"],
           constraint_count: 0,
           constraint_names: [],
           dependency_count: 0,
@@ -200,8 +200,8 @@ describe("estimateBuildCost", () => {
         {
           name: "BillingService",
           goal: null,
-          rpc_count: 2,
-          rpc_names: ["charge", "refund"],
+          operation_count: 2,
+          operation_names: ["charge", "refund"],
           constraint_count: 0,
           constraint_names: [],
           dependency_count: 0,
@@ -217,7 +217,7 @@ describe("estimateBuildCost", () => {
       stats: {
         type_count: 5,
         service_count: 2,
-        rpc_count: 4,
+        operation_count: 4,
         test_count: 2,
         constraint_count: 0,
         metric_count: 0,
@@ -263,7 +263,7 @@ describe("estimateBuildCost", () => {
       stats: {
         type_count: 0,
         service_count: 0,
-        rpc_count: 0,
+        operation_count: 0,
         test_count: 0,
         constraint_count: 0,
         metric_count: 0,

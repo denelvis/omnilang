@@ -453,7 +453,7 @@ mod tests {
 
     #[test]
     fn keywords() {
-        let kinds = lex_kinds("module use type struct enum service rpc");
+        let kinds = lex_kinds("module use type struct enum service operation");
         assert_eq!(
             kinds,
             vec![
@@ -463,7 +463,7 @@ mod tests {
                 TokenKind::KwStruct,
                 TokenKind::KwEnum,
                 TokenKind::KwService,
-                TokenKind::KwRpc,
+                TokenKind::KwOperation,
                 TokenKind::Eof,
             ]
         );
@@ -822,12 +822,12 @@ mod tests {
     }
 
     #[test]
-    fn rpc_block() {
-        let kinds = lex_kinds("rpc PlaceOrder { inputs: outputs: }");
+    fn operation_block() {
+        let kinds = lex_kinds("operation PlaceOrder { inputs: outputs: }");
         assert_eq!(
             kinds,
             vec![
-                TokenKind::KwRpc,
+                TokenKind::KwOperation,
                 TokenKind::Ident,
                 TokenKind::BraceOpen,
                 TokenKind::KwInputs,

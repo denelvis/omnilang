@@ -62,44 +62,44 @@ pub fn validate_constraints(file: &SourceFile, diagnostics: &mut Vec<Diagnostic>
                 }
             }
 
-            // Check RPC-level constraints
-            for rpc in &s.rpcs {
+            // Check Operation-level constraints
+            for op in &s.operations {
                 // Check for natural language preconditions
-                for pre in &rpc.preconditions {
+                for pre in &op.preconditions {
                     if let Expression::Literal(Literal::String(text)) = pre {
                         diagnostics.push(Diagnostic {
                             kind: DiagnosticKind::Warning,
                             message: format!(
-                                "Precondition '{}' in RPC '{}.{}' is a natural language constraint and cannot be statically verified. Consider formalizing it as a mathematical expression.",
-                                text, s.name, rpc.name
+                                "Precondition '{}' in operation '{}.{}' is a natural language constraint and cannot be statically verified. Consider formalizing it as a mathematical expression.",
+                                text, s.name, op.name
                             ),
-                            span: rpc.span,
+                            span: op.span,
                         });
                     }
                 }
 
                 // Check for natural language postconditions
-                for post in &rpc.postconditions {
+                for post in &op.postconditions {
                     if let Expression::Literal(Literal::String(text)) = post {
                         diagnostics.push(Diagnostic {
                             kind: DiagnosticKind::Warning,
                             message: format!(
-                                "Postcondition '{}' in RPC '{}.{}' is a natural language constraint and cannot be statically verified. Consider formalizing it as a mathematical expression.",
-                                text, s.name, rpc.name
+                                "Postcondition '{}' in operation '{}.{}' is a natural language constraint and cannot be statically verified. Consider formalizing it as a mathematical expression.",
+                                text, s.name, op.name
                             ),
-                            span: rpc.span,
+                            span: op.span,
                         });
                     }
                 }
 
-                if rpc.tests.is_empty() {
+                if op.tests.is_empty() {
                     diagnostics.push(Diagnostic {
                         kind: DiagnosticKind::Info,
                         message: format!(
-                            "rpc '{}.{}' has no test scenarios — consider adding tests for verification",
-                            s.name, rpc.name
+                            "operation '{}.{}' has no test scenarios — consider adding tests for verification",
+                            s.name, op.name
                         ),
-                        span: rpc.span,
+                        span: op.span,
                     });
                 }
             }
@@ -174,7 +174,7 @@ service API {
   goal: "Test"
   invariants:
     - "Service must always be active"
-  rpc Greet(name: String) -> String {
+  operation Greet(name: String) -> String {
     preconditions:
       - "name must not be empty"
     postconditions:

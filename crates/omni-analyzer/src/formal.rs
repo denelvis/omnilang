@@ -23,16 +23,16 @@ pub fn verify_proof_obligations(file: &SourceFile, diagnostics: &mut Vec<Diagnos
                 let mut service_verified = true;
                 let mut log_messages = Vec::new();
 
-                for rpc in &s.rpcs {
-                    if !rpc.preconditions.is_empty() || !rpc.postconditions.is_empty() {
-                        match verify_rpc(
+                for op in &s.operations {
+                    if !op.preconditions.is_empty() || !op.postconditions.is_empty() {
+                        match verify_operation(
                             &s.name,
-                            &rpc.name,
-                            &rpc.preconditions,
-                            &rpc.postconditions,
+                            &op.name,
+                            &op.preconditions,
+                            &op.postconditions,
                         ) {
                             Ok(smt_script) => {
-                                let filename = format!("{}_{}.smt2", s.name, rpc.name);
+                                let filename = format!("{}_{}.smt2", s.name, op.name);
                                 let filepath = proofs_dir.join(&filename);
                                 let _ = std::fs::write(&filepath, &smt_script);
 
@@ -40,13 +40,13 @@ pub fn verify_proof_obligations(file: &SourceFile, diagnostics: &mut Vec<Diagnos
                                 if !verified {
                                     service_verified = false;
                                 }
-                                log_messages.push(format!("  - RPC '{}': {}", rpc.name, msg));
+                                log_messages.push(format!("  - Operation '{}': {}", op.name, msg));
                             }
                             Err(e) => {
                                 service_verified = false;
                                 log_messages.push(format!(
-                                    "  - RPC '{}' SMT translation failed: {}",
-                                    rpc.name, e
+                                    "  - Operation '{}' SMT translation failed: {}",
+                                    op.name, e
                                 ));
                             }
                         }
@@ -79,9 +79,9 @@ pub fn verify_proof_obligations(file: &SourceFile, diagnostics: &mut Vec<Diagnos
     }
 }
 
-pub fn verify_rpc(
+pub fn verify_operation(
     service_name: &str,
-    rpc_name: &str,
+    operation_name: &str,
     preconditions: &[Expression],
     postconditions: &[Expression],
 ) -> Result<String, String> {
@@ -95,7 +95,7 @@ pub fn verify_rpc(
 
     let mut smt = String::new();
     smt.push_str("; SMT-LIB v2 Verification Script for: ");
-    smt.push_str(&format!("{}.{}\n\n", service_name, rpc_name));
+    smt.push_str(&format!("{}.{}\n\n", service_name, operation_name));
 
     // Declare all variables
     for var in &vars {

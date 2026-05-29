@@ -79,4 +79,35 @@ ${transitionMethods}
 `;
     return code.trim();
   }
+
+  public generateMermaid(w: WorkflowConfig): string {
+    const lines = ["stateDiagram-v2"];
+    
+    if (w.states && w.states.length > 0) {
+      lines.push(`    [*] --> ${w.states[0]}`);
+    }
+
+    for (const t of w.transitions) {
+      let line = `    ${t.from} --> ${t.to}`;
+      const parts: string[] = [];
+      if (t.trigger) {
+        parts.push(t.trigger);
+      }
+      if (t.guard) {
+        let guardStr = t.guard;
+        if ((guardStr.startsWith('"') && guardStr.endsWith('"')) || (guardStr.startsWith("'") && guardStr.endsWith("'"))) {
+          guardStr = guardStr.slice(1, -1);
+        }
+        parts.push(`[${guardStr}]`);
+      }
+      if (t.actions && t.actions.length > 0) {
+        parts.push(`/ ${t.actions.join(", ")}`);
+      }
+      if (parts.length > 0) {
+        line += ` : ${parts.join(" ")}`;
+      }
+      lines.push(line);
+    }
+    return lines.join("\n");
+  }
 }

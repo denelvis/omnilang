@@ -143,6 +143,340 @@ describe("SelfCorrectingService", () => {
       }
     }
 
+    // Case 0.5: BankTransferService for validating self-correction loop in demos
+    if (promptLower.includes("banktransferservice")) {
+      const isRetry = systemPrompt.includes("past generation retries") || systemPrompt.includes("LLM Prompt Adaptations");
+      if (!isRetry) {
+        return JSON.stringify({
+          files: [
+            {
+              path: "src/services/BankTransferService.ts",
+              content: `import { AccountId, Account } from '../types';
+export { AccountId, Account };
+export class BankTransferService {
+  public accounts = new Map<AccountId, Account>();
+  public transfer(fromId: AccountId, toId: AccountId, amount: number): boolean {
+    const value: number = "this triggers a TS compile error on the first attempt";
+    return true;
+  }
+}
+`
+            },
+            {
+              path: "tests/BankTransferService.test.ts",
+              content: `import { BankTransferService } from "../src/services/BankTransferService";
+describe("BankTransferService", () => {
+  it("should define service", () => {
+    const service = new BankTransferService();
+    expect(service).toBeDefined();
+  });
+});
+`
+            }
+          ]
+        });
+      } else {
+        return JSON.stringify({
+          files: [
+            {
+              path: "src/services/BankTransferService.ts",
+              content: `import { AccountId, Account } from '../types';
+export { AccountId, Account };
+export class BankTransferService {
+  public accounts = new Map<AccountId, Account>();
+  public transfer(fromId: AccountId, toId: AccountId, amount: number): boolean {
+    if (amount <= 0) {
+      throw new Error('Transfer amount must be strictly greater than zero');
+    }
+    const fromAcc = this.accounts.get(fromId);
+    const toAcc = this.accounts.get(toId);
+    if (!fromAcc || !toAcc || fromAcc.status !== 'Active' || toAcc.status !== 'Active') {
+      throw new Error('Both accounts must exist and be in Active status');
+    }
+    if (fromAcc.balance < amount) {
+      throw new Error('Sender account must have sufficient funds');
+    }
+    fromAcc.balance -= amount;
+    toAcc.balance += amount;
+    return true;
+  }
+  public addAccount(account: Account): void {
+    this.accounts.set(account.id, { ...account });
+  }
+}
+`
+            },
+            {
+              path: "tests/BankTransferService.test.ts",
+              content: `import { BankTransferService } from "../src/services/BankTransferService";
+describe("BankTransferService", () => {
+  let service: BankTransferService;
+  beforeEach(() => {
+    service = new BankTransferService();
+    service.addAccount({ id: 'acc-1', balance: 100, status: 'Active' });
+    service.addAccount({ id: 'acc-2', balance: 50, status: 'Active' });
+  });
+  it("should transfer funds successfully", () => {
+    const res = service.transfer('acc-1', 'acc-2', 30);
+    expect(res).toBe(true);
+    expect(service.accounts.get('acc-1')?.balance).toBe(70);
+    expect(service.accounts.get('acc-2')?.balance).toBe(80);
+  });
+  it("should reject negative transfers", () => {
+    expect(() => service.transfer('acc-1', 'acc-2', -10)).toThrow('Transfer amount must be strictly greater than zero');
+  });
+});
+`
+            }
+          ]
+        });
+      }
+    }
+
+    // Case 0.6: PaymentService for billing & invariants
+    if (promptLower.includes("paymentservice")) {
+      return JSON.stringify({
+        files: [
+          {
+            path: "src/services/PaymentService.ts",
+            content: `import { AccountId, Account } from '../types';
+export { AccountId, Account };
+
+export class PaymentService {
+  public accounts = new Map<AccountId, Account>();
+
+  public deposit(accountId: AccountId, amount: number): number {
+    if (amount <= 0) {
+      throw new Error("Deposit amount must be strictly greater than zero");
+    }
+    const account = this.accounts.get(accountId);
+    if (!account) {
+      throw new Error("Account not found");
+    }
+    account.balance += amount;
+    return account.balance;
+  }
+
+  public charge(accountId: AccountId, amount: number): boolean {
+    const account = this.accounts.get(accountId);
+    if (!account) {
+      throw new Error("Account not found");
+    }
+    if (account.status !== "Active") {
+      throw new Error("Account must be in Active status");
+    }
+    if (account.balance < amount) {
+      throw new Error("Account balance must be greater than or equal to the charge amount");
+    }
+    account.balance -= amount;
+    if (account.balance < 0) {
+      throw new Error("balance_safety: Account.balance >= 0");
+    }
+    return true;
+  }
+
+  public addAccount(account: Account): void {
+    this.accounts.set(account.id, { ...account });
+  }
+}
+`
+          },
+          {
+            path: "tests/PaymentService.test.ts",
+            content: `import { PaymentService } from '../src/services/PaymentService';
+import fc from 'fast-check';
+
+describe('PaymentService', () => {
+  let service: PaymentService;
+
+  beforeEach(() => {
+    service = new PaymentService();
+    service.addAccount({ id: 'acc-1', balance: 100, status: 'Active' });
+    service.addAccount({ id: 'acc-2', balance: 0, status: 'Active' });
+    service.addAccount({ id: 'acc-inactive', balance: 100, status: 'Inactive' });
+  });
+
+  test('deposit increases balance', () => {
+    const newBalance = service.deposit('acc-1', 50);
+    expect(newBalance).toBe(150);
+    expect(service.accounts.get('acc-1')?.balance).toBe(150);
+  });
+
+  test('deposit rejects non-positive amount', () => {
+    expect(() => service.deposit('acc-1', 0)).toThrow('Deposit amount must be strictly greater than zero');
+    expect(() => service.deposit('acc-1', -10)).toThrow('Deposit amount must be strictly greater than zero');
+  });
+
+  test('charge decreases balance', () => {
+    const success = service.charge('acc-1', 40);
+    expect(success).toBe(true);
+    expect(service.accounts.get('acc-1')?.balance).toBe(60);
+  });
+
+  test('charge rejects if balance is insufficient', () => {
+    expect(() => service.charge('acc-2', 10)).toThrow('Account balance must be greater than or equal to the charge amount');
+  });
+
+  test('charge rejects if account is inactive', () => {
+    expect(() => service.charge('acc-inactive', 50)).toThrow('Account must be in Active status');
+  });
+
+  test('property-based testing: balance remains non-negative', () => {
+    fc.assert(fc.property(fc.integer({ min: 1, max: 100 }), (amount) => {
+      const localService = new PaymentService();
+      localService.addAccount({ id: 'acc-prop', balance: 100, status: 'Active' });
+      try {
+        localService.charge('acc-prop', amount);
+        expect(localService.accounts.get('acc-prop')?.balance).toBeGreaterThanOrEqual(0);
+      } catch (e: any) {
+        expect(e.message).toMatch(/(balance_safety|greater than or equal to)/);
+      }
+    }));
+  });
+});
+`
+          }
+        ]
+      });
+    }
+
+    // Case 0.7: OrderService for full-stack ordering specification
+    if (promptLower.includes("orderservice")) {
+      return JSON.stringify({
+        files: [
+          {
+            path: "src/services/OrderService.ts",
+            content: `import { UserId, ProductId, OrderId, OrderItemId, OrderItem, Order } from '../types';
+export { UserId, ProductId, OrderId, OrderItemId, OrderItem, Order };
+
+export class OrderService {
+  public orders = new Map<OrderId, Order>();
+  public orderItems = new Map<OrderId, OrderItem[]>();
+  public users = new Map<UserId, { id: UserId; name: string; status: string }>();
+
+  public createOrder(userId: UserId, items: OrderItem[]): Order {
+    const user = this.users.get(userId);
+    if (!user || user.status !== 'Active') {
+      throw new Error('User must exist and have an Active status');
+    }
+    if (items.length === 0) {
+      throw new Error('At least one item must be present in the order');
+    }
+    for (const item of items) {
+      if (item.qty <= 0) {
+        throw new Error('All product quantities must be strictly positive');
+      }
+    }
+
+    let total = 0;
+    for (const item of items) {
+      total += item.price * item.qty;
+    }
+
+    const orderId = \`order-\${Date.now()}\`;
+    const order: Order = {
+      id: orderId,
+      userId,
+      total,
+      status: 'Created'
+    };
+
+    this.orders.set(orderId, order);
+    this.orderItems.set(orderId, [...items]);
+    return order;
+  }
+
+  public applyPromoCode(orderId: OrderId, code: string): Order {
+    const order = this.orders.get(orderId);
+    if (!order || order.status !== 'Created') {
+      throw new Error('Order must exist and be in Created status');
+    }
+    if (code !== 'VALID_CODE') {
+      throw new Error('Promo code must be valid');
+    }
+
+    const user = this.users.get(order.userId);
+    if (order.total > 100 && user && user.status === 'VIP') {
+      order.total = order.total * 0.9;
+    }
+    return order;
+  }
+
+  public processRefund(orderId: OrderId): boolean {
+    const order = this.orders.get(orderId);
+    if (!order || order.status !== 'Paid') {
+      throw new Error('Order must be in Paid status to refund');
+    }
+    order.status = 'Refunded';
+    return true;
+  }
+
+  public addUser(id: UserId, name: string, status: string): void {
+    this.users.set(id, { id, name, status });
+  }
+}
+`
+          },
+          {
+            path: "tests/OrderService.test.ts",
+            content: `import { OrderService } from '../src/services/OrderService';
+import { OrderItem } from '../src/types';
+import fc from 'fast-check';
+
+describe('OrderService', () => {
+  let service: OrderService;
+
+  beforeEach(() => {
+    service = new OrderService();
+    service.addUser('user-1', 'Alice', 'Active');
+    service.addUser('vip-1', 'Bob', 'Active');
+  });
+
+  test('createOrder calculates total', () => {
+    const items: OrderItem[] = [
+      { id: 'item-1', orderId: '', productId: 'prod-1', qty: 2, price: 10 },
+      { id: 'item-2', orderId: '', productId: 'prod-2', qty: 1, price: 25 }
+    ];
+    const order = service.createOrder('user-1', items);
+    expect(order.total).toBe(45);
+    expect(order.status).toBe('Created');
+  });
+
+  test('applyPromoCode gives 10% discount to VIP on orders > 100', () => {
+    const items: OrderItem[] = [
+      { id: 'item-1', orderId: '', productId: 'prod-1', qty: 1, price: 150 }
+    ];
+    
+    // Test for VIP user
+    const orderVip = service.createOrder('vip-1', items);
+    service.users.set('vip-1', { id: 'vip-1', name: 'Bob', status: 'VIP' });
+    const discountedOrder = service.applyPromoCode(orderVip.id, 'VALID_CODE');
+    expect(discountedOrder.total).toBe(135); // 150 - 10%
+    
+    // Test for regular user
+    const orderRegular = service.createOrder('user-1', items);
+    const nonDiscountedOrder = service.applyPromoCode(orderRegular.id, 'VALID_CODE');
+    expect(nonDiscountedOrder.total).toBe(150);
+  });
+
+  test('property-based testing: total non-negative', () => {
+    fc.assert(fc.property(fc.integer({ min: 1, max: 10 }), fc.integer({ min: 1, max: 100 }), (qty, price) => {
+      const items: OrderItem[] = [
+        { id: 'item-1', orderId: '', productId: 'prod-1', qty, price }
+      ];
+      const localService = new OrderService();
+      localService.addUser('user-1', 'Alice', 'Active');
+      const order = localService.createOrder('user-1', items);
+      expect(order.total).toBeGreaterThanOrEqual(0);
+    }));
+  });
+});
+`
+          }
+        ]
+      });
+    }
+
     // Case 1: Checkout service
     if (promptLower.includes("checkoutservice") || promptLower.includes("\"checkout\"")) {
       return JSON.stringify({

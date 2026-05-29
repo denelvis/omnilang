@@ -12,7 +12,7 @@ service PaymentService {
   goal: "Handle billing account deposits, charges, and refunds safely"
 
   /// Deposits money into the account
-  rpc Deposit(accountId: AccountId, amount: Money) -> Money {
+  operation Deposit(accountId: AccountId, amount: Money) -> Money {
     preconditions:
       - "Deposit amount must be strictly greater than zero"
     postconditions:
@@ -20,7 +20,7 @@ service PaymentService {
   }
 
   /// Charges the account for a purchase
-  rpc Charge(accountId: AccountId, amount: Money) -> Bool {
+  operation Charge(accountId: AccountId, amount: Money) -> Bool {
     preconditions:
       - "Account balance must be greater than or equal to the charge amount"
       - "Account must be in Active status"

@@ -80,7 +80,7 @@ describe("SQL Generator - mapTypeToSql", () => {
       stats: {
         type_count: 1,
         service_count: 0,
-        rpc_count: 0,
+        operation_count: 0,
         test_count: 0,
         constraint_count: 0,
         metric_count: 0,
@@ -188,7 +188,7 @@ describe("SQL Generator - generateSqlDdl", () => {
       stats: {
         type_count: 0,
         service_count: 0,
-        rpc_count: 0,
+        operation_count: 0,
         test_count: 0,
         constraint_count: 0,
         metric_count: 0,

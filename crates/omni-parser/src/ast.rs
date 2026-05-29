@@ -232,7 +232,7 @@ pub struct ServiceDecl {
     pub depends_on: Vec<String>,
     pub dependencies: Vec<DependencyRef>,
     pub policies: Vec<ServicePolicy>,
-    pub rpcs: Vec<RpcDecl>,
+    pub operations: Vec<OperationDecl>,
     pub budget: Option<BudgetBlock>,
     pub metrics: Vec<MetricDecl>,
     pub invariants: Vec<Expression>,
@@ -272,7 +272,7 @@ pub enum MetricKind {
 }
 
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
-pub struct RpcDecl {
+pub struct OperationDecl {
     pub name: String,
     pub inputs: Vec<Field>,
     pub outputs: Vec<Field>,

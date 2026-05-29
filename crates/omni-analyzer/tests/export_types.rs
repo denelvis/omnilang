@@ -77,7 +77,7 @@ fn export_typescript_types() {
     ts_defs.push_str("\n\n");
     ts_defs.push_str(&export::<TestBlock>(&config).unwrap());
     ts_defs.push_str("\n\n");
-    ts_defs.push_str(&export::<RpcDecl>(&config).unwrap());
+    ts_defs.push_str(&export::<OperationDecl>(&config).unwrap());
     ts_defs.push_str("\n\n");
     ts_defs.push_str(&export::<ServiceDecl>(&config).unwrap());
     ts_defs.push_str("\n\n");

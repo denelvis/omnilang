@@ -75,7 +75,7 @@ describe("Prisma Generator - mapTypeToPrisma", () => {
       stats: {
         type_count: 2,
         service_count: 0,
-        rpc_count: 0,
+        operation_count: 0,
         test_count: 0,
         constraint_count: 0,
         metric_count: 0,
@@ -258,7 +258,7 @@ describe("Prisma Generator - generatePrismaSchema", () => {
       stats: {
         type_count: 0,
         service_count: 0,
-        rpc_count: 0,
+        operation_count: 0,
         test_count: 0,
         constraint_count: 0,
         metric_count: 0,
@@ -341,7 +341,7 @@ describe("Prisma Generator - generatePrismaSchema", () => {
       stats: {
         type_count: 0,
         service_count: 0,
-        rpc_count: 0,
+        operation_count: 0,
         test_count: 0,
         constraint_count: 0,
         metric_count: 0,

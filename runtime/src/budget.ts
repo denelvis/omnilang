@@ -242,12 +242,12 @@ export function estimateBuildCost(
   tier: ModelTier = "Balanced"
 ): { estimatedCost: number; estimatedTokens: number; model: string } {
   const serviceCount = ir.services?.length || 0;
-  const rpcCount = ir.stats?.rpc_count || 0;
+  const operationCount = ir.stats?.operation_count || 0;
   const typeCount = ir.stats?.type_count || 0;
   const testCount = ir.stats?.test_count || 0;
 
   // Rough estimates: ~2K tokens input per service, ~4K output per service
-  const tokensPerService = 2000 + rpcCount * 500;
+  const tokensPerService = 2000 + operationCount * 500;
   const outputPerService = 4000 + testCount * 300;
   const totalInput = serviceCount * tokensPerService + typeCount * 200;
   const totalOutput = serviceCount * outputPerService;

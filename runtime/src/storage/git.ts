@@ -57,8 +57,8 @@ export class GitManager {
   }
 
   /** Create a structured commit */
-  commit(serviceName: string, stats: { rpcs: number; tests: number }): string {
-    const message = `${this.config.commitPrefix}generate ${serviceName} (${stats.rpcs} RPCs, ${stats.tests} tests)`;
+  commit(serviceName: string, stats: { operations: number; tests: number }): string {
+    const message = `${this.config.commitPrefix}generate ${serviceName} (${stats.operations} operations, ${stats.tests} tests)`;
     this.exec(`git commit -m "${message}"`);
     return message;
   }
@@ -72,7 +72,7 @@ export class GitManager {
   autoCommitAndPush(
     buildDir: string,
     serviceName: string,
-    stats: { rpcs: number; tests: number }
+    stats: { operations: number; tests: number }
   ): { committed: boolean; pushed: boolean; message: string } {
     if (!this.isGitRepo()) {
       return { committed: false, pushed: false, message: "Not a git repository" };

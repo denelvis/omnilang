@@ -79,18 +79,18 @@ export class DocGenerator {
       }
     }
 
-    // Build Paths from Services & RPCs
+    // Build Paths from Services & Operations
     for (const decl of declarations) {
       if ("Service" in decl) {
         const service = decl.Service;
-        for (const rpc of service.rpcs || []) {
-          const pathName = `/api/${service.name}/${rpc.name}`;
+        for (const op of service.operations || []) {
+          const pathName = `/api/${service.name}/${op.name}`;
           
           // Request schema definition
-          const reqSchemaName = `${service.name}_${rpc.name}_Request`;
+          const reqSchemaName = `${service.name}_${op.name}_Request`;
           const reqProperties: any = {};
           const reqRequired: string[] = [];
-          for (const field of rpc.inputs || []) {
+          for (const field of op.inputs || []) {
             reqProperties[field.name] = {
               type: this.mapTypeToOpenAPI(field.ty?.name),
               description: `Type: ${field.ty?.name}`
@@ -104,10 +104,10 @@ export class DocGenerator {
           };
 
           // Response schema definition
-          const resSchemaName = `${service.name}_${rpc.name}_Response`;
+          const resSchemaName = `${service.name}_${op.name}_Response`;
           const resProperties: any = {};
           const resRequired: string[] = [];
-          for (const field of rpc.outputs || []) {
+          for (const field of op.outputs || []) {
             resProperties[field.name] = {
               type: this.mapTypeToOpenAPI(field.ty?.name),
               description: `Type: ${field.ty?.name}`
@@ -122,9 +122,9 @@ export class DocGenerator {
 
           paths[pathName] = {
             post: {
-              summary: rpc.name,
-              description: `Invokes the RPC ${rpc.name} of ${service.name}.`,
-              operationId: `${service.name}_${rpc.name}`,
+              summary: op.name,
+              description: `Invokes the operation ${op.name} of ${service.name}.`,
+              operationId: `${service.name}_${op.name}`,
               requestBody: {
                 required: true,
                 content: {
@@ -195,37 +195,37 @@ export class DocGenerator {
           md += `\n`;
         }
 
-        md += `### RPC Operations & SLOs\n\n`;
-        for (const rpc of service.rpcs || []) {
-          md += `#### RPC: \`${rpc.name}\`\n\n`;
+        md += `### Service Operations & SLOs\n\n`;
+        for (const op of service.operations || []) {
+          md += `#### Operation: \`${op.name}\`\n\n`;
           
-          if (rpc.constraints && rpc.constraints.length > 0) {
+          if (op.constraints && op.constraints.length > 0) {
             md += `##### Constraints & SLOs\n`;
-            for (const c of rpc.constraints) {
+            for (const c of op.constraints) {
               md += `- \`${c.name}\`\n`;
             }
             md += `\n`;
           }
 
-          if (rpc.preconditions && rpc.preconditions.length > 0) {
+          if (op.preconditions && op.preconditions.length > 0) {
             md += `##### Preconditions\n`;
-            for (const p of rpc.preconditions) {
+            for (const p of op.preconditions) {
               md += `- \`${JSON.stringify(p)}\`\n`;
             }
             md += `\n`;
           }
 
-          if (rpc.postconditions && rpc.postconditions.length > 0) {
+          if (op.postconditions && op.postconditions.length > 0) {
             md += `##### Postconditions\n`;
-            for (const p of rpc.postconditions) {
+            for (const p of op.postconditions) {
               md += `- \`${JSON.stringify(p)}\`\n`;
             }
             md += `\n`;
           }
 
           // Incident runbook section
-          md += `##### 🚨 Incident Response & Mitigation for \`${rpc.name}\`\n\n`;
-          md += `1. **Symptom:** Latency/SLO warnings or Precondition errors on \`${rpc.name}\`.\n`;
+          md += `##### 🚨 Incident Response & Mitigation for \`${op.name}\`\n\n`;
+          md += `1. **Symptom:** Latency/SLO warnings or Precondition errors on \`${op.name}\`.\n`;
           md += `2. **Mitigation steps:**\n`;
           md += `   - Inspect logs for inputs violating defined preconditions.\n`;
           md += `   - Check downstream service health status if latency exceeds bounds.\n`;
@@ -247,14 +247,14 @@ export class DocGenerator {
         <h3>${s.name}</h3>
         <p class="goal">${s.goal ? `<strong>Goal:</strong> ${s.goal}` : "No goal described."}</p>
         <div class="meta-row">
-          <span><strong>RPCs:</strong> ${s.rpc_count}</span>
+          <span><strong>Operations:</strong> ${s.operation_count}</span>
           <span><strong>Constraints:</strong> ${s.constraint_count}</span>
           <span><strong>Confidence:</strong> <span class="badge ${s.confidence.toLowerCase()}">${s.confidence}</span></span>
         </div>
         <div class="spec-section">
-          <h4>RPC Endpoints:</h4>
+          <h4>Endpoints:</h4>
           <ul>
-            ${(s.rpc_names || []).map((name: string) => `<li><code>POST /api/${s.name}/${name}</code></li>`).join("")}
+            ${(s.operation_names || []).map((name: string) => `<li><code>POST /api/${s.name}/${name}</code></li>`).join("")}
           </ul>
         </div>
         <div class="spec-section">

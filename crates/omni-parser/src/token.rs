@@ -59,7 +59,7 @@ pub enum TokenKind {
     KwConstraint,
     KwBudget,
     KwEvidence,
-    KwRpc,
+    KwOperation,
     KwMetrics,
     KwCounter,
     KwGauge,
@@ -276,7 +276,7 @@ impl TokenKind {
             "constraint" => Some(TokenKind::KwConstraint),
             "budget" => Some(TokenKind::KwBudget),
             "evidence" => Some(TokenKind::KwEvidence),
-            "rpc" => Some(TokenKind::KwRpc),
+            "operation" => Some(TokenKind::KwOperation),
             "metrics" => Some(TokenKind::KwMetrics),
             "counter" => Some(TokenKind::KwCounter),
             "gauge" => Some(TokenKind::KwGauge),
@@ -404,7 +404,7 @@ impl TokenKind {
                 | TokenKind::KwConstraint
                 | TokenKind::KwBudget
                 | TokenKind::KwEvidence
-                | TokenKind::KwRpc
+                | TokenKind::KwOperation
                 | TokenKind::KwMetrics
                 | TokenKind::KwCounter
                 | TokenKind::KwGauge

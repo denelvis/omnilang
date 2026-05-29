@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "jest"
+    "test": "jest",
+    "demo:self-correction": "NODE_PATH=node_modules ts-node --project tsconfig.json -T ../scripts/demo-self-correction.ts",
+    "playground": "node dist/playground/server.js & sleep 1 && open http://localhost:3000"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",

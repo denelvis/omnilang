@@ -94,7 +94,7 @@ export class AgentOptimizer {
       for (const err of uniqueErrors) {
         const lowerErr = err.toLowerCase();
         if (lowerErr.includes("precondition") || lowerErr.includes("pre-condition") || lowerErr.includes("assert") || lowerErr.includes("constraint")) {
-          instructions.push("- Ensure all preconditions and constraints on RPC inputs are strictly verified in code and throw appropriate errors on violation.");
+          instructions.push("- Ensure all preconditions and constraints on operation inputs are strictly verified in code and throw appropriate errors on violation.");
         }
         if (lowerErr.includes("postcondition") || lowerErr.includes("post-condition")) {
           instructions.push("- Ensure postconditions are satisfied by returning output structures conforming to the defined schemas and rules.");

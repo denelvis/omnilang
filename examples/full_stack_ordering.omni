@@ -1,0 +1,93 @@
+module acme.ordering
+
+type UserId = String
+type ProductId = String
+type OrderId = String
+type OrderItemId = String
+
+type OrderItem = struct {
+  id: OrderItemId
+  orderId: OrderId
+  productId: ProductId
+  qty: Int
+  price: Money
+}
+
+type Order = struct {
+  id: OrderId
+  userId: UserId
+  total: Money
+  status: String
+}
+
+schema OrderDB {
+  goal: "Manage relational data for ordering system"
+  target: postgresql
+
+  entity User {
+    id: UserId @primary
+    name: String
+    status: String
+  }
+
+  entity Product {
+    id: ProductId @primary
+    name: String
+    price: Money
+  }
+
+  entity Order {
+    id: OrderId @primary
+    userId: UserId @indexed
+    total: Money
+    status: String
+  }
+
+  entity OrderItem {
+    id: OrderItemId @primary
+    orderId: OrderId @indexed
+    productId: ProductId
+    qty: Int
+    price: Money
+  }
+
+  relations:
+    - User has_many Order
+    - Order has_many OrderItem
+}
+
+service OrderService {
+  goal: "Manage customer order life cycle and apply discount policies"
+
+  /// Creates a new order for a user with the selected items
+  operation CreateOrder(userId: UserId, items: List<OrderItem>) -> Order {
+    preconditions:
+      - "User must exist and have an Active status"
+      - "At least one item must be present in the order"
+      - "All product quantities must be strictly positive"
+    postconditions:
+      - "Order total must be calculated as sum of item prices times quantities"
+      - "Order status must start as Created"
+  }
+
+  /// Applies a promo code to an existing order
+  operation ApplyPromoCode(orderId: OrderId, code: String) -> Order {
+    preconditions:
+      - "Order must exist and be in Created status"
+      - "Promo code must be valid"
+    postconditions:
+      - "If order total exceeds $100 and user is VIP, apply a 10% discount"
+  }
+
+  /// Processes refunds for cancelled orders
+  operation ProcessRefund(orderId: OrderId) -> Bool {
+    preconditions:
+      - "Order must be in Paid status to refund"
+    postconditions:
+      - "Order status is updated to Refunded on success"
+  }
+
+  invariants:
+    - total_non_negative: "Order.total >= 0"
+    - vip_discount_policy: "VIP users get a 10% discount on orders exceeding $100"
+}
